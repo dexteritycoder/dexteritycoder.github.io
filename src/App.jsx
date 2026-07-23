@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Navigate,
   Route,
@@ -805,6 +805,9 @@ function Hero({ titleHtml, backgroundImage, titleStyle, meta, heroClassName = "h
 function Gallery({ items }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [itemsPerView, setItemsPerView] = useState(getItemsPerView());
+  const [activeImageIndex, setActiveImageIndex] = useState(-1);
+  const touchStartXRef = useRef(0);
+  const touchDeltaXRef = useRef(0);
 
   useEffect(() => {
     function handleResize() {
@@ -822,45 +825,162 @@ function Gallery({ items }) {
     setCurrentIndex((index) => Math.min(index, maxIndex));
   }, [items.length, itemsPerView]);
 
+  useEffect(() => {
+    if (activeImageIndex < 0) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setActiveImageIndex(-1);
+      } else if (event.key === "ArrowLeft") {
+        setActiveImageIndex((index) => (index <= 0 ? items.length - 1 : index - 1));
+      } else if (event.key === "ArrowRight") {
+        setActiveImageIndex((index) => (index >= items.length - 1 ? 0 : index + 1));
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeImageIndex, items.length]);
+
   const maxIndex = Math.max(items.length - itemsPerView, 0);
   const offsetPercent = itemsPerView === 1 ? 100 : itemsPerView === 2 ? 50 : 33.333333;
 
+  function showPreviousSlide() {
+    setCurrentIndex((index) => Math.max(index - 1, 0));
+  }
+
+  function showNextSlide() {
+    setCurrentIndex((index) => Math.min(index + 1, maxIndex));
+  }
+
+  function showPreviousImage() {
+    setActiveImageIndex((index) => (index <= 0 ? items.length - 1 : index - 1));
+  }
+
+  function showNextImage() {
+    setActiveImageIndex((index) => (index >= items.length - 1 ? 0 : index + 1));
+  }
+
+  function handleTouchStart(event) {
+    touchStartXRef.current = event.touches[0]?.clientX || 0;
+    touchDeltaXRef.current = 0;
+  }
+
+  function handleTouchMove(event) {
+    const currentX = event.touches[0]?.clientX || 0;
+    touchDeltaXRef.current = currentX - touchStartXRef.current;
+  }
+
+  function handleTouchEnd() {
+    const threshold = 45;
+    if (touchDeltaXRef.current <= -threshold) {
+      showNextSlide();
+    } else if (touchDeltaXRef.current >= threshold) {
+      showPreviousSlide();
+    }
+
+    touchStartXRef.current = 0;
+    touchDeltaXRef.current = 0;
+  }
+
   return (
-    <div className="gallery-container">
-      <div className="gallery-title">GALLERY</div>
-      <div className="gallery-viewport">
+    <>
+      <div className="gallery-container">
+        <div className="gallery-title">GALLERY</div>
         <div
-          className="gallery-slider"
-          style={{ transform: `translateX(-${currentIndex * offsetPercent}%)` }}
+          className="gallery-viewport"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
-          {items.map((item) => (
-            <div key={item.image} className="gallery-item">
-              <img src={item.image} alt={item.alt} />
-            </div>
-          ))}
+          <div
+            className="gallery-slider"
+            style={{ transform: `translateX(-${currentIndex * offsetPercent}%)` }}
+          >
+            {items.map((item, index) => (
+              <button
+                key={item.image}
+                type="button"
+                className="gallery-item"
+                onClick={() => setActiveImageIndex(index)}
+                aria-label={`Open image ${index + 1} of ${items.length}`}
+              >
+                <img src={item.image} alt={item.alt} />
+              </button>
+            ))}
+          </div>
         </div>
+        <button
+          className="gallery-button left"
+          type="button"
+          aria-label="Previous gallery items"
+          onClick={showPreviousSlide}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <button
+          className="gallery-button right"
+          type="button"
+          aria-label="Next gallery items"
+          onClick={showNextSlide}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
-      <button
-        className="gallery-button left"
-        type="button"
-        aria-label="Previous gallery items"
-        onClick={() => setCurrentIndex((index) => Math.max(index - 1, 0))}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-          <path d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-      <button
-        className="gallery-button right"
-        type="button"
-        aria-label="Next gallery items"
-        onClick={() => setCurrentIndex((index) => Math.min(index + 1, maxIndex))}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-          <path d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-    </div>
+
+      {activeImageIndex >= 0 ? (
+        <div
+          className="gallery-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image viewer"
+          onClick={() => setActiveImageIndex(-1)}
+        >
+          <div className="gallery-modal-inner" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="gallery-modal-close"
+              aria-label="Close image viewer"
+              onClick={() => setActiveImageIndex(-1)}
+            >
+              ×
+            </button>
+            <button
+              type="button"
+              className="gallery-modal-nav left"
+              aria-label="Previous image"
+              onClick={showPreviousImage}
+            >
+              ‹
+            </button>
+            <figure className="gallery-modal-figure">
+              <img src={items[activeImageIndex]?.image} alt={items[activeImageIndex]?.alt || "Gallery image"} />
+              {items[activeImageIndex]?.alt ? <figcaption>{items[activeImageIndex].alt}</figcaption> : null}
+            </figure>
+            <button
+              type="button"
+              className="gallery-modal-nav right"
+              aria-label="Next image"
+              onClick={showNextImage}
+            >
+              ›
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
