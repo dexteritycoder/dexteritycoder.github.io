@@ -150,8 +150,8 @@ function useTransitionNavigate() {
   };
 }
 
-function buildBlogRoute(blogId) {
-  return `/blog/${encodeURIComponent(blogId)}`;
+function buildWritingRoute(blogId) {
+  return `/writings/${encodeURIComponent(blogId)}`;
 }
 
 function buildProjectRoute(repo) {
@@ -1074,7 +1074,7 @@ function HomePage({ siteData, engagement }) {
 }
 
 function WorksPage({ siteData, engagement }) {
-  usePageSetup("Blog | Dexteritycoder", "home-page");
+  usePageSetup("Writings | Dexteritycoder", "home-page");
 
   const cards = siteData.home.works.map((card) => ({
     ...card,
@@ -1323,14 +1323,14 @@ function BlogListPage({ siteData, engagement }) {
       </div>
       <section className="home-blog-grid" id="blog-grid">
         {loading ? <p>Loading...</p> : null}
-        {error ? <p style={{ color: "white", textAlign: "center" }}>Error loading blog posts</p> : null}
+        {error ? <p style={{ color: "white", textAlign: "center" }}>Error loading writings</p> : null}
         {!loading && !error
           ? filteredPosts.map((post) => (
               <div
                 key={post.id}
                 className="blog-card"
                 data-blog={post.id}
-                onClick={() => navigateWithTransition(buildBlogRoute(post.id))}
+                onClick={() => navigateWithTransition(buildWritingRoute(post.id))}
               >
                 <LikeButton
                   entityType="blog"
@@ -1371,21 +1371,21 @@ function BlogDetailPage({ siteData, engagement }) {
   const [error, setError] = useState(null);
 
   const post = Array.isArray(posts) ? posts.find((item) => item.id === blogId) : null;
-  usePageSetup(post ? `${post.title} | Dexteritycoder` : "Blog | Dexteritycoder", "post-page");
+  usePageSetup(post ? `${post.title} | Dexteritycoder` : "Writings | Dexteritycoder", "post-page");
 
   useEffect(() => {
     let active = true;
 
     async function load() {
       if (!blogId) {
-        setError(new Error("Blog not found"));
+        setError(new Error("Writing not found"));
         return;
       }
 
       try {
         const response = await fetch(`/BlogPosts/${blogId}.md`);
         if (!response.ok) {
-          throw new Error("Blog not found");
+          throw new Error("Writing not found");
         }
 
         const text = await response.text();
@@ -1406,7 +1406,7 @@ function BlogDetailPage({ siteData, engagement }) {
     };
   }, [blogId]);
 
-  const heroHtml = post ? post.title : "Blog Not Found";
+  const heroHtml = post ? post.title : "Writing Not Found";
 
   return (
     <Shell siteData={siteData} footer="minimal">
@@ -1432,7 +1432,7 @@ function BlogDetailPage({ siteData, engagement }) {
                   {formatCount(getEntityStats(engagement.statsMap, "blog", blogId).commentCount)} comments
                 </span>
               </div>
-              <CommentsPanel entityType="blog" entityId={blogId} engagement={engagement} title="Blog Comments" />
+              <CommentsPanel entityType="blog" entityId={blogId} engagement={engagement} title="Writing Comments" />
             </>
           ) : null}
         </article>
@@ -1747,6 +1747,11 @@ function formatCommentDate(value) {
   return date.toLocaleString();
 }
 
+function LegacyWritingRedirect() {
+  const { blogId } = useParams();
+  return <Navigate to={`/writings/${encodeURIComponent(blogId || "")}`} replace />;
+}
+
 function AppRoutes({ siteData, engagement }) {
   return (
     <Routes>
@@ -1760,10 +1765,12 @@ function AppRoutes({ siteData, engagement }) {
       <Route path="/about" element={<AboutPage siteData={siteData} />} />
       <Route path="/contact" element={<ContactPage siteData={siteData} />} />
       <Route path="/donate" element={<DonatePage siteData={siteData} />} />
-      <Route path="/blog" element={<BlogListPage siteData={siteData} engagement={engagement} />} />
-      <Route path="/blog/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} />} />
+      <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} />} />
+      <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} />} />
+      <Route path="/blog" element={<Navigate to="/writings" replace />} />
+      <Route path="/blog/:blogId" element={<LegacyWritingRedirect />} />
       <Route path="/project/:owner/:repo" element={<ProjectDetailPage siteData={siteData} engagement={engagement} />} />
-      <Route path="/pages/blog.html" element={<Navigate to="/works" replace />} />
+      <Route path="/pages/blog.html" element={<Navigate to="/writings" replace />} />
       <Route path="/pages/production-projects.html" element={<Navigate to="/production-projects" replace />} />
       <Route path="/pages/ai-machine-learning.html" element={<Navigate to="/ai-machine-learning" replace />} />
       <Route path="/pages/train-to-thoughts.html" element={<Navigate to="/train-to-thoughts" replace />} />
@@ -1771,7 +1778,7 @@ function AppRoutes({ siteData, engagement }) {
       <Route path="/pages/about.html" element={<Navigate to="/about" replace />} />
       <Route path="/pages/contact.html" element={<Navigate to="/contact" replace />} />
       <Route path="/pages/donate.html" element={<Navigate to="/donate" replace />} />
-      <Route path="/Blogs/blog-list.html" element={<Navigate to="/blog" replace />} />
+      <Route path="/Blogs/blog-list.html" element={<Navigate to="/writings" replace />} />
       <Route path="/Blogs/blog-detail.html" element={<BlogDetailPage siteData={siteData} engagement={engagement} />} />
       <Route path="/pages/project-detail.html" element={<ProjectDetailPage siteData={siteData} engagement={engagement} />} />
       <Route path="/pages/post1.html" element={<Navigate to="/production-projects" replace />} />

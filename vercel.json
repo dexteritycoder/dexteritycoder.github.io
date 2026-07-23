@@ -37,6 +37,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/writings",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/writings/:blogId",
+      "destination": "/index.html"
+    },
+    {
       "source": "/blog",
       "destination": "/index.html"
     },

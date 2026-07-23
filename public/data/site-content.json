@@ -2,7 +2,7 @@
   "navigation": [
     { "label": "HOME", "href": "/" },
     { "label": "WORKS", "href": "/works" },
-    { "label": "BLOGS", "href": "/blog" },
+    { "label": "WRITINGS", "href": "/writings" },
     { "label": "DONATE", "href": "/donate" },
     { "label": "CONTACT", "href": "/contact" },
     { "label": "ABOUT", "href": "/about" }
@@ -86,8 +86,8 @@
         "heroImage": "/featuredimages/1.jpg",
         "meta": "Admin · Mar 21, 2023 · 4 min read",
         "markdownPath": "/posts/production-projects.md",
-        "ctaLabel": "Explore Blogs",
-        "ctaHref": "/blog"
+        "ctaLabel": "Explore Writings",
+        "ctaHref": "/writings"
       },
       "ai-machine-learning": {
         "title": "Artificial Intelligence & Machine Learning",
@@ -96,8 +96,8 @@
         "heroImage": "/featuredimages/2.jpg",
         "meta": "Admin · Mar 21, 2023 · 6 min read",
         "markdownPath": "/posts/ai-machine-learning.md",
-        "ctaLabel": "Explore Blogs",
-        "ctaHref": "/blog"
+        "ctaLabel": "Explore Writings",
+        "ctaHref": "/writings"
       },
       "train-to-thoughts": {
         "title": "Train to Thoughts",
@@ -106,8 +106,8 @@
         "heroImage": "/featuredimages/3.jpg",
         "meta": "Admin · Mar 21, 2023 · 3 min read",
         "markdownPath": "/posts/train-to-thoughts.md",
-        "ctaLabel": "Explore Blogs",
-        "ctaHref": "/blog"
+        "ctaLabel": "Explore Writings",
+        "ctaHref": "/writings"
       },
       "available-for-freelancing": {
         "title": "Available for Freelancing",
@@ -125,8 +125,8 @@
     "documentTitle": "About | Dexteritycoder",
     "heroTitleHtml": "<b>STORIES</b> OF <b>CRAFT</b>",
     "markdownPath": "/posts/about.md",
-    "ctaLabel": "Explore Blogs",
-    "ctaHref": "/blog",
+    "ctaLabel": "Explore Writings",
+    "ctaHref": "/writings",
     "gallery": [
       { "image": "/featuredimages/1.jpg", "alt": "Dexteritycoder image 3" },
       { "image": "/featuredimages/2.jpg", "alt": "Dexteritycoder image 4" },
@@ -146,8 +146,8 @@
     "iframeUrl": "https://rzp.io/rzp/pY7ypaE"
   },
   "blogs": {
-    "documentTitle": "Blogs | Dexteritycoder",
+    "documentTitle": "Writings | Dexteritycoder",
     "heroTitleHtml": "TIME OUTSIDE SCREENS",
-    "searchPlaceholder": "Search blogs by title, description, or author..."
+    "searchPlaceholder": "Search writings by title, description, or author..."
   }
 }
