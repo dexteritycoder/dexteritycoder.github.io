@@ -5,6 +5,50 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/works",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/production-projects",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/ai-machine-learning",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/train-to-thoughts",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/available-for-freelancing",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/donate",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/blog",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/blog/:blogId",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/project/:owner/:repo",
+      "destination": "/index.html"
+    },
+    {
       "source": "/pages/:path*.html",
       "destination": "/index.html"
     },

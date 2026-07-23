@@ -351,6 +351,10 @@ p {
     line-height: 1.7;
 }
 
+.blog-card {
+    position: relative;
+}
+
 .blog-footer {
     display: flex;
     flex-wrap: wrap;
@@ -1690,4 +1694,323 @@ form p {
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
     background: #116dff;
     color: white;
+}
+
+.engagement-panel{
+    margin-top: 2rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    background: rgba(6, 6, 6, 0.94);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
+}
+
+.engagement-stack{
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.engagement-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.engagement-header h2{
+    margin: 0 0 0.35rem;
+}
+
+.engagement-header p,
+.engagement-stats-row span,
+.engagement-comment-meta span,
+.engagement-empty-state{
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.engagement-like-btn,
+.engagement-submit-btn{
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.engagement-like-btn{
+    padding: 0.95rem 1.35rem;
+    white-space: nowrap;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.22);
+}
+
+.engagement-like-btn.is-active{
+    background: linear-gradient(135deg, rgba(255, 77, 109, 0.34), rgba(255, 112, 143, 0.22));
+    border-color: rgba(255, 103, 135, 0.68);
+    box-shadow: 0 0 0 1px rgba(255, 108, 139, 0.2), 0 14px 30px rgba(255, 77, 109, 0.18);
+}
+
+.engagement-submit-btn{
+    padding: 0.9rem 1.3rem;
+}
+
+.engagement-like-btn:hover,
+.engagement-submit-btn:hover{
+    transform: translateY(-2px) scale(1.01);
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.engagement-stats-row{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.engagement-form{
+    display: grid;
+    gap: 0.85rem;
+}
+
+.engagement-form-grid{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.engagement-form input,
+.engagement-form textarea{
+    width: 100%;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.engagement-form textarea{
+    resize: vertical;
+    min-height: 140px;
+}
+
+.engagement-error{
+    color: #ff9cae;
+    margin: 0.35rem 0 0.85rem;
+}
+
+.engagement-comments{
+    display: grid;
+    gap: 0.9rem;
+}
+
+.engagement-comments-section{
+    padding: 1.1rem 1.15rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.engagement-comments-section-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.engagement-comments-section-header h3{
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 400;
+}
+
+.engagement-comment-card{
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.engagement-comment-card p{
+    margin: 0.6rem 0 0;
+    white-space: pre-wrap;
+}
+
+.engagement-comment-meta{
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.engagement-panel-minimal{
+    margin-top: 0;
+    padding: 1.1rem 1.15rem;
+    border-radius: 18px;
+    background: rgba(10, 10, 10, 0.9);
+    backdrop-filter: none;
+}
+
+.engagement-count{
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.92rem;
+}
+
+.engagement-form-top{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+}
+
+.engagement-panel-minimal .engagement-header h2{
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.engagement-panel-minimal .engagement-form textarea{
+    min-height: 88px;
+}
+
+.like-button{
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    flex: 0 0 auto;
+    gap: 0.08rem;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 50%;
+    background: linear-gradient(180deg, rgba(18, 18, 18, 0.96), rgba(7, 7, 7, 0.98));
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.26);
+    transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    will-change: transform;
+}
+
+.like-button:active,
+.like-button.is-busy{
+    transform: scale(0.96);
+}
+
+.like-button.is-active{
+    border-color: rgba(255, 111, 141, 0.78);
+    background: linear-gradient(180deg, rgba(18, 18, 18, 0.96), rgba(7, 7, 7, 0.98));
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.26);
+}
+
+.like-button.is-popping{
+    animation: like-pop 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.like-button-heart{
+    font-size: 0.88rem;
+    line-height: 1;
+    color: #ff9aaf;
+    text-shadow: none;
+}
+
+.like-button.is-active .like-button-heart{
+    color: #ff91a8;
+    text-shadow: 0 0 14px rgba(255, 120, 150, 0.52), 0 0 24px rgba(255, 120, 150, 0.24);
+}
+
+.like-button-count{
+    font-size: 0.58rem;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.96);
+    font-weight: 600;
+}
+
+.card-like-button{
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 3;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+}
+
+.detail-like-button{
+    flex-direction: row;
+    gap: 0.42rem;
+    width: auto;
+    height: 46px;
+    min-width: 0;
+    min-height: 46px;
+    aspect-ratio: auto;
+    padding: 0 0.95rem;
+    border-radius: 999px;
+}
+
+.detail-like-button.is-active{
+    background: linear-gradient(135deg, rgba(88, 10, 28, 0.98), rgba(33, 8, 14, 1));
+    box-shadow: 0 0 0 1px rgba(255, 111, 141, 0.26), 0 20px 40px rgba(120, 16, 42, 0.35);
+}
+
+.detail-like-button .like-button-heart{
+    font-size: 0.98rem;
+}
+
+.detail-like-button .like-button-count{
+    font-size: 0.78rem;
+}
+
+.post-engagement-strip{
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin-top: 1.1rem;
+}
+
+.post-engagement-comments{
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.95rem;
+}
+
+@keyframes like-pop {
+    0% {
+        transform: scale(1);
+    }
+    35% {
+        transform: scale(1.14);
+    }
+    65% {
+        transform: scale(0.98);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@media (max-width: 720px) {
+    .engagement-header,
+    .engagement-comment-meta,
+    .engagement-comments-section-header{
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .engagement-form-top{
+        grid-template-columns: 1fr;
+    }
+
+    .engagement-form-grid{
+        grid-template-columns: 1fr;
+    }
 }

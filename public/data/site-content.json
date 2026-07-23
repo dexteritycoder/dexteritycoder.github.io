@@ -1,11 +1,11 @@
 {
   "navigation": [
-    { "label": "HOME", "href": "/index.html" },
-    { "label": "WORKS", "href": "/pages/blog.html" },
-    { "label": "BLOGS", "href": "/Blogs/blog-list.html" },
-    { "label": "DONATE", "href": "/pages/donate.html" },
-    { "label": "CONTACT", "href": "/pages/contact.html" },
-    { "label": "ABOUT", "href": "/pages/about.html" }
+    { "label": "HOME", "href": "/" },
+    { "label": "WORKS", "href": "/works" },
+    { "label": "BLOGS", "href": "/blog" },
+    { "label": "DONATE", "href": "/donate" },
+    { "label": "CONTACT", "href": "/contact" },
+    { "label": "ABOUT", "href": "/about" }
   ],
   "footer": {
     "brand": "DEXTERITYCODER",
@@ -87,7 +87,7 @@
         "meta": "Admin · Mar 21, 2023 · 4 min read",
         "markdownPath": "/posts/production-projects.md",
         "ctaLabel": "Explore Blogs",
-        "ctaHref": "/Blogs/blog-list.html"
+        "ctaHref": "/blog"
       },
       "ai-machine-learning": {
         "title": "Artificial Intelligence & Machine Learning",
@@ -97,7 +97,7 @@
         "meta": "Admin · Mar 21, 2023 · 6 min read",
         "markdownPath": "/posts/ai-machine-learning.md",
         "ctaLabel": "Explore Blogs",
-        "ctaHref": "/Blogs/blog-list.html"
+        "ctaHref": "/blog"
       },
       "train-to-thoughts": {
         "title": "Train to Thoughts",
@@ -107,7 +107,7 @@
         "meta": "Admin · Mar 21, 2023 · 3 min read",
         "markdownPath": "/posts/train-to-thoughts.md",
         "ctaLabel": "Explore Blogs",
-        "ctaHref": "/Blogs/blog-list.html"
+        "ctaHref": "/blog"
       },
       "available-for-freelancing": {
         "title": "Available for Freelancing",
@@ -117,7 +117,7 @@
         "meta": "Admin · Mar 21, 2023 · 2 min read",
         "markdownPath": "/posts/available-for-freelancing.md",
         "ctaLabel": "Contact Me",
-        "ctaHref": "/pages/contact.html"
+        "ctaHref": "/contact"
       }
     }
   },
@@ -126,7 +126,7 @@
     "heroTitleHtml": "<b>STORIES</b> OF <b>CRAFT</b>",
     "markdownPath": "/posts/about.md",
     "ctaLabel": "Explore Blogs",
-    "ctaHref": "/Blogs/blog-list.html",
+    "ctaHref": "/blog",
     "gallery": [
       { "image": "/featuredimages/1.jpg", "alt": "Dexteritycoder image 3" },
       { "image": "/featuredimages/2.jpg", "alt": "Dexteritycoder image 4" },
