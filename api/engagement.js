@@ -457,9 +457,11 @@ async function ensureEntityExists(client, entityKey, entityType, entityId) {
 
 function getPool() {
   if (!pool) {
-    const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+    const connectionString = resolveDatabaseConnectionString();
     if (!connectionString) {
-      throw new Error("Database is not configured. Add POSTGRES_URL in your Vercel project.");
+      throw new Error(
+        "Database is not configured. Connect a Postgres integration to this Vercel project or add DATABASE_URL/POSTGRES_URL for the deployed environment and redeploy."
+      );
     }
 
     pool = new Pool({
@@ -469,6 +471,69 @@ function getPool() {
   }
 
   return pool;
+}
+
+function resolveDatabaseConnectionString() {
+  const directNames = [
+    "POSTGRES_URL",
+    "DATABASE_URL",
+    "POSTGRES_PRISMA_URL",
+    "POSTGRES_URL_NON_POOLING",
+  ];
+
+  for (const name of directNames) {
+    const value = cleanEnvValue(process.env[name]);
+    if (value) {
+      return value;
+    }
+  }
+
+  const envEntries = Object.entries(process.env);
+  const discoveredUrl = envEntries.find(([name, value]) => {
+    if (!cleanEnvValue(value)) {
+      return false;
+    }
+
+    return (
+      /(?:^|_)(?:DATABASE_URL|POSTGRES_URL|POSTGRES_PRISMA_URL|POSTGRES_URL_NON_POOLING)$/i.test(name) ||
+      /^postgres(?:ql)?:\/\//i.test(String(value).trim())
+    );
+  });
+  if (discoveredUrl) {
+    return String(discoveredUrl[1]).trim();
+  }
+
+  const individualConfig = buildConnectionStringFromParts();
+  if (individualConfig) {
+    return individualConfig;
+  }
+
+  return "";
+}
+
+function buildConnectionStringFromParts() {
+  const prefixes = ["POSTGRES", "DATABASE"];
+
+  for (const prefix of prefixes) {
+    const host = cleanEnvValue(process.env[`${prefix}_HOST`]);
+    const user = cleanEnvValue(process.env[`${prefix}_USER`]);
+    const password = cleanEnvValue(process.env[`${prefix}_PASSWORD`]);
+    const database = cleanEnvValue(process.env[`${prefix}_DATABASE`]);
+    const port = cleanEnvValue(process.env[`${prefix}_PORT`]) || "5432";
+
+    if (!host || !user || !database) {
+      continue;
+    }
+
+    const auth = `${encodeURIComponent(user)}:${encodeURIComponent(password || "")}`;
+    return `postgresql://${auth}@${host}:${port}/${database}`;
+  }
+
+  return "";
+}
+
+function cleanEnvValue(value) {
+  return String(value || "").trim();
 }
 
 function shouldUseSsl(connectionString) {
