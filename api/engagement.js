@@ -1,12 +1,16 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { Pool } = require("pg");
+const { get, put, BlobNotFoundError } = require("@vercel/blob");
 
 const COMMENTS_PATH = "data/engagement/comments.json";
 const LIKES_PATH = "data/engagement/likes.json";
+const COMMENTS_BLOB_PATH = "engagement/comments.json";
+const LIKES_BLOB_PATH = "engagement/likes.json";
 
 let pool;
 let schemaReadyPromise;
+let blobAccessMode;
 
 module.exports = async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
@@ -16,21 +20,33 @@ module.exports = async function handler(req, res) {
     const storage = getStorageMode();
 
     if (req.method === "GET") {
-      const state = storage === "database" ? await loadStateFromDatabase() : await loadStateFromFiles();
-      return sendJson(res, 200, { stats: buildStatsMap(state) });
+      const state = await loadStateByMode(storage);
+      return sendJson(res, 200, {
+        stats: buildStatsMap(state),
+        storage,
+        persistent: storage === "database" || storage === "blob" || storage === "file",
+      });
     }
 
     if (req.method === "POST") {
       const body = normalizeBody(req.body);
 
+      if (storage === "degraded") {
+        return sendJson(res, 503, {
+          error:
+            "Persistent storage is not configured for this deployment. Connect Vercel Postgres or Vercel Blob to make comments and likes shared across visitors.",
+          storage,
+        });
+      }
+
       if (body.action === "toggle-like") {
-        const stats = storage === "database" ? await handleToggleLikeInDatabase(body) : await handleToggleLikeInFiles(body);
-        return sendJson(res, 200, { stats });
+        const stats = await handleToggleLikeByMode(storage, body);
+        return sendJson(res, 200, { stats, storage });
       }
 
       if (body.action === "comment") {
-        const stats = storage === "database" ? await handleCreateCommentInDatabase(body) : await handleCreateCommentInFiles(body);
-        return sendJson(res, 200, { stats });
+        const stats = await handleCreateCommentByMode(storage, body);
+        return sendJson(res, 200, { stats, storage });
       }
 
       return sendJson(res, 400, { error: "Unsupported engagement action." });
@@ -44,7 +60,46 @@ module.exports = async function handler(req, res) {
 };
 
 function getStorageMode() {
-  return process.env.VERCEL ? "database" : "file";
+  if (!process.env.VERCEL) {
+    return "file";
+  }
+  if (hasDatabaseConfig()) {
+    return "database";
+  }
+  if (hasBlobConfig()) {
+    return "blob";
+  }
+  return "degraded";
+}
+
+async function loadStateByMode(storage) {
+  if (storage === "database") {
+    return loadStateFromDatabase();
+  }
+  if (storage === "blob") {
+    return loadStateFromBlob();
+  }
+  return loadStateFromFiles();
+}
+
+async function handleToggleLikeByMode(storage, body) {
+  if (storage === "database") {
+    return handleToggleLikeInDatabase(body);
+  }
+  if (storage === "blob") {
+    return handleToggleLikeInBlob(body);
+  }
+  return handleToggleLikeInFiles(body);
+}
+
+async function handleCreateCommentByMode(storage, body) {
+  if (storage === "database") {
+    return handleCreateCommentInDatabase(body);
+  }
+  if (storage === "blob") {
+    return handleCreateCommentInBlob(body);
+  }
+  return handleCreateCommentInFiles(body);
 }
 
 async function handleToggleLikeInFiles(body) {
@@ -71,8 +126,7 @@ async function handleToggleLikeInFiles(body) {
   likeState.updatedAt = new Date().toISOString();
   await saveDatasetToFile(LIKES_PATH, likeState);
 
-  const state = await loadStateFromFiles();
-  return buildStatsMap(state);
+  return buildStatsMap(await loadStateFromFiles());
 }
 
 async function handleCreateCommentInFiles(body) {
@@ -99,8 +153,61 @@ async function handleCreateCommentInFiles(body) {
   commentsState.updatedAt = new Date().toISOString();
   await saveDatasetToFile(COMMENTS_PATH, commentsState);
 
-  const state = await loadStateFromFiles();
-  return buildStatsMap(state);
+  return buildStatsMap(await loadStateFromFiles());
+}
+
+async function handleToggleLikeInBlob(body) {
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
+  const actorName = cleanRequired(body.actorName, "Actor name is required.");
+  const likeState = await loadLikeStateFromBlob();
+  const key = buildEntityKey(entityType, entityId);
+  const entity = ensureEntityRecord(likeState.entities, key);
+
+  const existingIndex = entity.entries.findIndex((entry) => entry.actorId === actorId);
+  if (existingIndex >= 0) {
+    entity.entries.splice(existingIndex, 1);
+  } else {
+    entity.entries.unshift({
+      actorId,
+      actorName,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  likeState.entities[key] = entity;
+  likeState.updatedAt = new Date().toISOString();
+  await saveDatasetToBlob(LIKES_BLOB_PATH, likeState);
+
+  return buildStatsMap(await loadStateFromBlob());
+}
+
+async function handleCreateCommentInBlob(body) {
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
+  const authorName = cleanRequired(body.authorName, "Author name is required.");
+  const authorEmail = cleanOptional(body.authorEmail, 160);
+  const message = cleanRequired(body.message, "Comment is required.", 2000);
+  const commentsState = await loadCommentStateFromBlob();
+  const key = buildEntityKey(entityType, entityId);
+  const entity = ensureEntityRecord(commentsState.entities, key);
+
+  entity.entries.unshift({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    actorId,
+    authorName,
+    authorEmail,
+    message,
+    createdAt: new Date().toISOString(),
+  });
+
+  commentsState.entities[key] = entity;
+  commentsState.updatedAt = new Date().toISOString();
+  await saveDatasetToBlob(COMMENTS_BLOB_PATH, commentsState);
+
+  return buildStatsMap(await loadStateFromBlob());
 }
 
 async function handleToggleLikeInDatabase(body) {
@@ -145,8 +252,7 @@ async function handleToggleLikeInDatabase(body) {
     client.release();
   }
 
-  const state = await loadStateFromDatabase();
-  return buildStatsMap(state);
+  return buildStatsMap(await loadStateFromDatabase());
 }
 
 async function handleCreateCommentInDatabase(body) {
@@ -189,8 +295,7 @@ async function handleCreateCommentInDatabase(body) {
     client.release();
   }
 
-  const state = await loadStateFromDatabase();
-  return buildStatsMap(state);
+  return buildStatsMap(await loadStateFromDatabase());
 }
 
 async function loadStateFromFiles() {
@@ -213,8 +318,100 @@ async function loadDatasetFromFile(filePath) {
 }
 
 async function saveDatasetToFile(filePath, data) {
+  if (process.env.VERCEL) {
+    throw new Error("This Vercel deployment does not have durable server storage configured.");
+  }
+
   const localPath = path.join(process.cwd(), filePath);
   await fs.writeFile(localPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+async function loadStateFromBlob() {
+  const [commentsState, likesState] = await Promise.all([loadCommentStateFromBlob(), loadLikeStateFromBlob()]);
+  return { commentsState, likesState };
+}
+
+async function loadCommentStateFromBlob() {
+  return loadDatasetFromBlob(COMMENTS_BLOB_PATH, COMMENTS_PATH);
+}
+
+async function loadLikeStateFromBlob() {
+  return loadDatasetFromBlob(LIKES_BLOB_PATH, LIKES_PATH);
+}
+
+async function loadDatasetFromBlob(blobPath, fallbackFilePath) {
+  const blobJson = await getBlobJson(blobPath);
+  if (blobJson) {
+    return ensureDatasetShape(blobJson);
+  }
+  return loadDatasetFromFile(fallbackFilePath);
+}
+
+async function saveDatasetToBlob(blobPath, data) {
+  const access = await resolveBlobAccessMode();
+  const token = resolveBlobToken();
+  await put(blobPath, `${JSON.stringify(data, null, 2)}\n`, {
+    access,
+    token,
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
+}
+
+async function getBlobJson(blobPath) {
+  const access = await resolveBlobAccessMode();
+  const token = resolveBlobToken();
+
+  try {
+    const blob = await get(blobPath, { access, token });
+    if (!blob) {
+      return null;
+    }
+
+    const response = await fetch(blob.downloadUrl || blob.url);
+    if (!response.ok) {
+      throw new Error(`Blob read failed with status ${response.status}.`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function resolveBlobAccessMode() {
+  if (blobAccessMode) {
+    return blobAccessMode;
+  }
+
+  const forcedMode = cleanEnvValue(process.env.ENGAGEMENT_BLOB_ACCESS);
+  if (forcedMode === "private" || forcedMode === "public") {
+    blobAccessMode = forcedMode;
+    return blobAccessMode;
+  }
+
+  const token = resolveBlobToken();
+  for (const access of ["private", "public"]) {
+    try {
+      await put("__engagement_probe__.json", '{"ok":true}\n', {
+        access,
+        token,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+      });
+      blobAccessMode = access;
+      return blobAccessMode;
+    } catch {
+      // Try the next access mode.
+    }
+  }
+
+  throw new Error("Blob storage is configured, but its access mode could not be resolved.");
 }
 
 async function ensureDatabaseReady() {
@@ -473,6 +670,14 @@ function getPool() {
   return pool;
 }
 
+function hasDatabaseConfig() {
+  return Boolean(resolveDatabaseConnectionString());
+}
+
+function hasBlobConfig() {
+  return Boolean(resolveBlobToken());
+}
+
 function resolveDatabaseConnectionString() {
   const directNames = [
     "POSTGRES_URL",
@@ -530,6 +735,22 @@ function buildConnectionStringFromParts() {
   }
 
   return "";
+}
+
+function resolveBlobToken() {
+  const directNames = ["BLOB_READ_WRITE_TOKEN"];
+  for (const name of directNames) {
+    const value = cleanEnvValue(process.env[name]);
+    if (value) {
+      return value;
+    }
+  }
+
+  const discoveredToken = Object.entries(process.env).find(([name, value]) => {
+    return /(?:^|_)BLOB_READ_WRITE_TOKEN$/i.test(name) && cleanEnvValue(value);
+  });
+
+  return discoveredToken ? String(discoveredToken[1]).trim() : "";
 }
 
 function cleanEnvValue(value) {
