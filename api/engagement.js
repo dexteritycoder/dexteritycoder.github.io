@@ -718,21 +718,29 @@ async function ensureEntityExists(client, entityKey, entityType, entityId) {
 
 function getPool() {
   if (!pool) {
-    const connectionString = resolveDatabaseConnectionString();
-    if (!connectionString) {
+    const rawConnectionString = resolveDatabaseConnectionString();
+    if (!rawConnectionString) {
       throw createHttpError(
         500,
         "Database is not configured. Connect a Postgres integration to this Vercel project or add DATABASE_URL/POSTGRES_URL for the deployed environment and redeploy."
       );
     }
 
+    const sanitizedConnectionString = sanitizeConnectionString(rawConnectionString);
+    const ssl = resolveDatabaseSslConfig(rawConnectionString);
     logInfo("database.pool.create", {
-      connection: summarizeConnectionString(connectionString),
-      ssl: shouldUseSsl(connectionString),
+      connection: summarizeConnectionString(sanitizedConnectionString),
+      sslEnabled: Boolean(ssl),
+      sslMode: readSslModeFromConnectionString(rawConnectionString),
     });
     pool = new Pool({
-      connectionString,
-      ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : false,
+      connectionString: sanitizedConnectionString,
+      ssl,
+      max: Number(process.env.ENGAGEMENT_DB_POOL_MAX || 3),
+      idleTimeoutMillis: Number(process.env.ENGAGEMENT_DB_IDLE_TIMEOUT_MS || 5000),
+      connectionTimeoutMillis: Number(process.env.ENGAGEMENT_DB_CONNECT_TIMEOUT_MS || 10000),
+      allowExitOnIdle: true,
+      keepAlive: true,
     });
     pool.on("error", (error) => {
       logError("database.pool.error", error);
@@ -837,6 +845,43 @@ function shouldUseSsl(connectionString) {
     return false;
   }
   return !/localhost|127\.0\.0\.1/i.test(connectionString);
+}
+
+function resolveDatabaseSslConfig(connectionString) {
+  const sslMode = readSslModeFromConnectionString(connectionString);
+  if (sslMode === "disable" || process.env.POSTGRES_SSL === "false") {
+    return false;
+  }
+
+  if (!shouldUseSsl(connectionString)) {
+    return false;
+  }
+
+  return {
+    rejectUnauthorized: false,
+  };
+}
+
+function sanitizeConnectionString(connectionString) {
+  try {
+    const url = new URL(connectionString);
+    const blockedKeys = ["sslmode", "sslcert", "sslkey", "sslrootcert"];
+    for (const key of blockedKeys) {
+      url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch {
+    return connectionString;
+  }
+}
+
+function readSslModeFromConnectionString(connectionString) {
+  try {
+    const url = new URL(connectionString);
+    return cleanEnvValue(url.searchParams.get("sslmode")).toLowerCase();
+  } catch {
+    return "";
+  }
 }
 
 function buildStatsMap({ commentsState, likesState }) {
