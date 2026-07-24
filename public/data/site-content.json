@@ -9,15 +9,14 @@
   ],
   "footer": {
     "brand": "DEXTERITYCODER",
-    "copyright": "© 2035 Dexteritycoder",
+    "copyright": "© 2026 Dexteritycoder",
     "newsletterPrompt": "Enter your email here *",
     "newsletterCheckbox": "Yes, subscribe me to your newsletter.",
     "newsletterButton": "Subscribe",
     "socials": [
-      { "label": "Facebook", "href": "#", "icon": "/images/facebook.avif" },
-      { "label": "Twitter", "href": "#", "icon": "/images/twitter.avif" },
-      { "label": "Pinterest", "href": "#", "icon": "/images/pinterest.avif" },
-      { "label": "Instagram", "href": "#", "icon": "/images/instagram.avif" }
+      { "label": "Instagram", "href": "https://instagram.com/dexteritycoder", "icon": "/images/instagram.avif" },
+      { "label": "X", "href": "https://x.com/dexteritycoder", "icon": "/images/x.svg" },
+      { "label": "GitHub", "href": "https://github.com/abhinav25232354", "icon": "/images/github.svg" }
     ]
   },
   "home": {
@@ -29,9 +28,9 @@
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Production Projects",
         "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
-        "views": "50.6k views",
+        "views": "870 views",
         "comments": "0 comments",
-        "likes": "❤ 23.7k"
+        "likes": "❤ 36"
       },
       {
         "slug": "ai-machine-learning",
@@ -39,9 +38,9 @@
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Artificial Intelligence & Machine Learning",
         "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
-        "views": "25.2k views",
+        "views": "730 views",
         "comments": "0 comments",
-        "likes": "❤ 14.8k"
+        "likes": "❤ 27"
       },
       {
         "slug": "train-to-thoughts",
@@ -49,9 +48,9 @@
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Train to Thoughts",
         "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
-        "views": "90.2k views",
+        "views": "960 views",
         "comments": "0 comments",
-        "likes": "❤ 67.4k"
+        "likes": "❤ 44"
       },
       {
         "slug": "available-for-freelancing",
@@ -59,9 +58,9 @@
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Available for Freelancing",
         "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
-        "views": "0 views",
+        "views": "540 views",
         "comments": "0 comments",
-        "likes": "❤ 5"
+        "likes": "❤ 20"
       }
     ],
     "gallery": [

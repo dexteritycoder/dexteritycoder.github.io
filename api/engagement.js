@@ -5,8 +5,57 @@ const { get, put, BlobNotFoundError } = require("@vercel/blob");
 
 const COMMENTS_PATH = "data/engagement/comments.json";
 const LIKES_PATH = "data/engagement/likes.json";
+const VIEWS_PATH = "data/engagement/views.json";
 const COMMENTS_BLOB_PATH = "engagement/comments.json";
 const LIKES_BLOB_PATH = "engagement/likes.json";
+const VIEWS_BLOB_PATH = "engagement/views.json";
+const DEFAULT_VIEW_COUNTS = {
+  "blog:How to Make our own Jarvis with the help of python": 920,
+  "blog:When Hosting Became Business, Creativity Was Buried": 680,
+  "blog:Why Learning from Scratch Still Matters in the Age of AI": 980,
+  "article:production-projects": 870,
+  "article:ai-machine-learning": 730,
+  "article:train-to-thoughts": 960,
+  "article:available-for-freelancing": 540,
+  "project:Offline Music Library System": 610,
+  "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": 760,
+};
+const DEFAULT_LIKE_COUNTS = {
+  "blog:How to Make our own Jarvis with the help of python": 34,
+  "blog:When Hosting Became Business, Creativity Was Buried": 22,
+  "blog:Why Learning from Scratch Still Matters in the Age of AI": 41,
+  "article:production-projects": 36,
+  "article:ai-machine-learning": 27,
+  "article:train-to-thoughts": 44,
+  "article:available-for-freelancing": 20,
+  "project:Offline Music Library System": 25,
+  "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": 31,
+};
+const DEFAULT_COMMENT_COUNTS = {
+  "blog:How to Make our own Jarvis with the help of python": 0,
+  "blog:When Hosting Became Business, Creativity Was Buried": 0,
+  "blog:Why Learning from Scratch Still Matters in the Age of AI": 0,
+  "article:production-projects": 0,
+  "article:ai-machine-learning": 0,
+  "article:train-to-thoughts": 0,
+  "article:available-for-freelancing": 0,
+  "project:Offline Music Library System": 0,
+  "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": 0,
+};
+const LEGACY_PLACEHOLDER_LIKE_COUNTS = {
+  "blog:How to Make our own Jarvis with the help of python": 256,
+  "blog:When Hosting Became Business, Creativity Was Buried": 175,
+  "blog:Why Learning from Scratch Still Matters in the Age of AI": 312,
+  "article:production-projects": 23700,
+  "article:ai-machine-learning": 14800,
+  "article:train-to-thoughts": 67400,
+  "article:available-for-freelancing": 5,
+};
+const LEGACY_PLACEHOLDER_COMMENT_COUNTS = {
+  "blog:How to Make our own Jarvis with the help of python": 32,
+  "blog:When Hosting Became Business, Creativity Was Buried": 18,
+  "blog:Why Learning from Scratch Still Matters in the Age of AI": 45,
+};
 
 let pool;
 let schemaReadyPromise;
@@ -91,6 +140,19 @@ module.exports = async function handler(req, res) {
         return sendStateResponse(res, 200, storage, state, requestId);
       }
 
+      if (action === "increment-view") {
+        const state = await handleIncrementViewByMode(storage, body);
+        logInfo("request.success", {
+          requestId,
+          method: req.method,
+          action,
+          storage,
+          entityType: body.entityType,
+          entityId: body.entityId,
+        });
+        return sendStateResponse(res, 200, storage, state, requestId);
+      }
+
       logInfo("request.unsupported_action", {
         requestId,
         receivedAction: body.action,
@@ -168,6 +230,16 @@ async function handleDeleteCommentByMode(storage, body) {
   return handleDeleteCommentInFiles(body);
 }
 
+async function handleIncrementViewByMode(storage, body) {
+  if (storage === "database") {
+    return handleIncrementViewInDatabase(body);
+  }
+  if (storage === "blob") {
+    return handleIncrementViewInBlob(body);
+  }
+  return handleIncrementViewInFiles(body);
+}
+
 async function handleToggleLikeInFiles(body) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
@@ -243,6 +315,19 @@ async function handleDeleteCommentInFiles(body) {
   return loadStateFromFiles();
 }
 
+async function handleIncrementViewInFiles(body) {
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const viewsState = await loadViewStateFromFile();
+  const key = buildEntityKey(entityType, entityId);
+  const entity = ensureCountEntityRecord(viewsState.entities, key);
+  entity.count += 1;
+  viewsState.entities[key] = entity;
+  viewsState.updatedAt = new Date().toISOString();
+  await saveDatasetToFile(VIEWS_PATH, viewsState);
+  return loadStateFromFiles();
+}
+
 async function handleToggleLikeInBlob(body) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
@@ -315,6 +400,19 @@ async function handleDeleteCommentInBlob(body) {
   commentsState.updatedAt = new Date().toISOString();
   await saveDatasetToBlob(COMMENTS_BLOB_PATH, commentsState);
 
+  return loadStateFromBlob();
+}
+
+async function handleIncrementViewInBlob(body) {
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const viewsState = await loadViewStateFromBlob();
+  const key = buildEntityKey(entityType, entityId);
+  const entity = ensureCountEntityRecord(viewsState.entities, key);
+  entity.count += 1;
+  viewsState.entities[key] = entity;
+  viewsState.updatedAt = new Date().toISOString();
+  await saveDatasetToBlob(VIEWS_BLOB_PATH, viewsState);
   return loadStateFromBlob();
 }
 
@@ -438,9 +536,43 @@ async function handleDeleteCommentInDatabase(body) {
   return loadStateFromDatabase();
 }
 
+async function handleIncrementViewInDatabase(body) {
+  await ensureDatabaseReady();
+
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const entityKey = buildEntityKey(entityType, entityId);
+  const client = await getPool().connect();
+
+  try {
+    await client.query("BEGIN");
+    await ensureEntityExists(client, entityKey, entityType, entityId);
+    await client.query(
+      `
+        UPDATE engagement_entities
+        SET legacy_view_count = legacy_view_count + 1, updated_at = NOW()
+        WHERE entity_key = $1
+      `,
+      [entityKey]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return loadStateFromDatabase();
+}
+
 async function loadStateFromFiles() {
-  const [commentsState, likesState] = await Promise.all([loadCommentStateFromFile(), loadLikeStateFromFile()]);
-  return { commentsState, likesState };
+  const [commentsState, likesState, viewsState] = await Promise.all([
+    loadCommentStateFromFile(),
+    loadLikeStateFromFile(),
+    loadViewStateFromFile(),
+  ]);
+  return { commentsState, likesState, viewsState };
 }
 
 async function loadCommentStateFromFile() {
@@ -449,6 +581,10 @@ async function loadCommentStateFromFile() {
 
 async function loadLikeStateFromFile() {
   return loadDatasetFromFile(LIKES_PATH);
+}
+
+async function loadViewStateFromFile() {
+  return loadCountDatasetFromFile(VIEWS_PATH);
 }
 
 async function loadDatasetFromFile(filePath) {
@@ -466,6 +602,11 @@ async function loadDatasetFromFile(filePath) {
   }
 }
 
+async function loadCountDatasetFromFile(filePath) {
+  const dataset = await loadDatasetFromFile(filePath);
+  return ensureCountDatasetShape(dataset);
+}
+
 async function saveDatasetToFile(filePath, data) {
   if (process.env.VERCEL) {
     throw new Error("This Vercel deployment does not have durable server storage configured.");
@@ -476,8 +617,12 @@ async function saveDatasetToFile(filePath, data) {
 }
 
 async function loadStateFromBlob() {
-  const [commentsState, likesState] = await Promise.all([loadCommentStateFromBlob(), loadLikeStateFromBlob()]);
-  return { commentsState, likesState };
+  const [commentsState, likesState, viewsState] = await Promise.all([
+    loadCommentStateFromBlob(),
+    loadLikeStateFromBlob(),
+    loadViewStateFromBlob(),
+  ]);
+  return { commentsState, likesState, viewsState };
 }
 
 async function loadCommentStateFromBlob() {
@@ -488,12 +633,21 @@ async function loadLikeStateFromBlob() {
   return loadDatasetFromBlob(LIKES_BLOB_PATH, LIKES_PATH);
 }
 
+async function loadViewStateFromBlob() {
+  return loadCountDatasetFromBlob(VIEWS_BLOB_PATH, VIEWS_PATH);
+}
+
 async function loadDatasetFromBlob(blobPath, fallbackFilePath) {
   const blobJson = await getBlobJson(blobPath);
   if (blobJson) {
     return ensureDatasetShape(blobJson);
   }
   return loadDatasetFromFile(fallbackFilePath);
+}
+
+async function loadCountDatasetFromBlob(blobPath, fallbackFilePath) {
+  const dataset = await loadDatasetFromBlob(blobPath, fallbackFilePath);
+  return ensureCountDatasetShape(dataset);
 }
 
 async function saveDatasetToBlob(blobPath, data) {
@@ -584,10 +738,16 @@ async function initializeDatabase() {
       entity_key TEXT PRIMARY KEY,
       entity_type TEXT NOT NULL,
       entity_id TEXT NOT NULL,
+      legacy_view_count INTEGER NOT NULL DEFAULT 0,
       legacy_comment_count INTEGER NOT NULL DEFAULT 0,
       legacy_like_count INTEGER NOT NULL DEFAULT 0,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE engagement_entities
+    ADD COLUMN IF NOT EXISTS legacy_view_count INTEGER NOT NULL DEFAULT 0
   `);
 
   await db.query(`
@@ -617,6 +777,7 @@ async function initializeDatabase() {
 
   const seedCheck = await db.query("SELECT COUNT(*)::int AS count FROM engagement_entities");
   if ((seedCheck.rows[0] && seedCheck.rows[0].count) > 0) {
+    await normalizePlaceholderEngagementData(db);
     logInfo("database.initialize.ready", {
       seeded: false,
       entityCount: seedCheck.rows[0].count,
@@ -625,20 +786,71 @@ async function initializeDatabase() {
   }
 
   await seedFromLegacyFiles();
+  await normalizePlaceholderEngagementData(db);
   logInfo("database.initialize.ready", {
     seeded: true,
   });
 }
 
+async function normalizePlaceholderEngagementData(db) {
+  for (const [entityKey, defaultViews] of Object.entries(DEFAULT_VIEW_COUNTS)) {
+    await db.query(
+      `
+        UPDATE engagement_entities
+        SET legacy_view_count = $2
+        WHERE entity_key = $1
+          AND (legacy_view_count = 0 OR legacy_view_count IS NULL)
+      `,
+      [entityKey, defaultViews]
+    );
+  }
+
+  for (const [entityKey, placeholderLikes] of Object.entries(LEGACY_PLACEHOLDER_LIKE_COUNTS)) {
+    await db.query(
+      `
+        UPDATE engagement_entities
+        SET legacy_like_count = $2
+        WHERE entity_key = $1
+          AND legacy_like_count = $3
+      `,
+      [entityKey, DEFAULT_LIKE_COUNTS[entityKey], placeholderLikes]
+    );
+  }
+
+  for (const [entityKey, placeholderComments] of Object.entries(LEGACY_PLACEHOLDER_COMMENT_COUNTS)) {
+    await db.query(
+      `
+        UPDATE engagement_entities
+        SET legacy_comment_count = $2
+        WHERE entity_key = $1
+          AND legacy_comment_count = $3
+      `,
+      [entityKey, DEFAULT_COMMENT_COUNTS[entityKey], placeholderComments]
+    );
+  }
+
+  await db.query(
+    `
+      DELETE FROM engagement_comments
+      WHERE entity_key = 'article:production-projects'
+        AND author_name = 'Abhinav'
+        AND message = 'This is a nice article'
+        AND author_email = ''
+    `
+  );
+}
+
 async function seedFromLegacyFiles() {
-  const [commentsState, likesState] = await Promise.all([
+  const [commentsState, likesState, viewsState] = await Promise.all([
     loadDatasetFromFile(COMMENTS_PATH),
     loadDatasetFromFile(LIKES_PATH),
+    loadCountDatasetFromFile(VIEWS_PATH),
   ]);
 
   const keys = new Set([
     ...Object.keys(commentsState.entities || {}),
     ...Object.keys(likesState.entities || {}),
+    ...Object.keys(viewsState.entities || {}),
   ]);
 
   if (keys.size === 0) {
@@ -655,6 +867,7 @@ async function seedFromLegacyFiles() {
     for (const key of keys) {
       const commentEntity = ensureEntityRecord(commentsState.entities, key);
       const likeEntity = ensureEntityRecord(likesState.entities, key);
+      const viewEntity = ensureCountEntityRecord(viewsState.entities, key);
       const [entityType, ...entityIdParts] = String(key).split(":");
       const entityId = entityIdParts.join(":");
 
@@ -664,17 +877,19 @@ async function seedFromLegacyFiles() {
             entity_key,
             entity_type,
             entity_id,
+            legacy_view_count,
             legacy_comment_count,
             legacy_like_count,
             updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
           ON CONFLICT (entity_key) DO NOTHING
         `,
         [
           key,
           entityType || "article",
           entityId || key,
+          Number(viewEntity.count || 0),
           Number(commentEntity.legacyCount || 0),
           Number(likeEntity.legacyCount || 0),
         ]
@@ -748,7 +963,7 @@ async function loadStateFromDatabase() {
   const db = getPool();
   const [entitiesResult, commentsResult, likesResult] = await Promise.all([
     db.query(`
-      SELECT entity_key, legacy_comment_count, legacy_like_count
+      SELECT entity_key, legacy_view_count, legacy_comment_count, legacy_like_count
       FROM engagement_entities
     `),
     db.query(`
@@ -773,8 +988,16 @@ async function loadStateFromDatabase() {
     updatedAt: new Date().toISOString(),
     entities: {},
   };
+  const viewsState = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    entities: {},
+  };
 
   for (const row of entitiesResult.rows) {
+    viewsState.entities[row.entity_key] = {
+      count: Number(row.legacy_view_count || 0),
+    };
     commentsState.entities[row.entity_key] = {
       legacyCount: Number(row.legacy_comment_count || 0),
       entries: [],
@@ -806,7 +1029,7 @@ async function loadStateFromDatabase() {
     });
   }
 
-  return { commentsState, likesState };
+  return { commentsState, likesState, viewsState };
 }
 
 async function ensureEntityExists(client, entityKey, entityType, entityId) {
@@ -988,17 +1211,20 @@ function readSslModeFromConnectionString(connectionString) {
   }
 }
 
-function buildStatsMap({ commentsState, likesState }) {
+function buildStatsMap({ commentsState, likesState, viewsState }) {
   const keys = new Set([
     ...Object.keys(commentsState.entities || {}),
     ...Object.keys(likesState.entities || {}),
+    ...Object.keys(viewsState?.entities || {}),
   ]);
 
   const stats = {};
   for (const key of keys) {
     const commentEntity = ensureEntityRecord(commentsState.entities, key);
     const likeEntity = ensureEntityRecord(likesState.entities, key);
+    const viewEntity = ensureCountEntityRecord(viewsState?.entities || {}, key);
     stats[key] = {
+      viewCount: Number(viewEntity.count || 0),
       commentCount: Number(commentEntity.legacyCount || 0) + commentEntity.entries.length,
       likeCount: Number(likeEntity.legacyCount || 0) + likeEntity.entries.length,
       comments: [...commentEntity.entries].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
@@ -1009,8 +1235,8 @@ function buildStatsMap({ commentsState, likesState }) {
   return stats;
 }
 
-function getStateUpdatedAt({ commentsState, likesState }) {
-  const timestamps = [commentsState?.updatedAt, likesState?.updatedAt]
+function getStateUpdatedAt({ commentsState, likesState, viewsState }) {
+  const timestamps = [commentsState?.updatedAt, likesState?.updatedAt, viewsState?.updatedAt]
     .map((value) => {
       const time = value ? new Date(value).getTime() : 0;
       return Number.isFinite(time) ? time : 0;
@@ -1040,6 +1266,21 @@ function ensureDatasetShape(data) {
   };
 }
 
+function ensureCountDatasetShape(data) {
+  const entities = {};
+  for (const [key, value] of Object.entries(data?.entities || {})) {
+    entities[key] = {
+      count: Number(value?.count || value?.legacyCount || 0),
+    };
+  }
+
+  return {
+    version: Number(data?.version || 1),
+    updatedAt: data?.updatedAt || null,
+    entities,
+  };
+}
+
 function ensureEntityRecord(entities, key) {
   if (!entities[key]) {
     entities[key] = { legacyCount: 0, entries: [] };
@@ -1049,6 +1290,16 @@ function ensureEntityRecord(entities, key) {
   }
   if (typeof entities[key].legacyCount !== "number") {
     entities[key].legacyCount = Number(entities[key].legacyCount || 0);
+  }
+  return entities[key];
+}
+
+function ensureCountEntityRecord(entities, key) {
+  if (!entities[key]) {
+    entities[key] = { count: 0 };
+  }
+  if (typeof entities[key].count !== "number") {
+    entities[key].count = Number(entities[key].count || 0);
   }
   return entities[key];
 }
@@ -1123,6 +1374,14 @@ function normalizeAction(body) {
     return "toggle-like";
   }
 
+  if (action === "increment-view" || action === "increment_view" || action === "view" || action === "track-view") {
+    return "increment-view";
+  }
+
+  if (looksLikeIncrementViewPayload(body) && (action.includes("view") || !action)) {
+    return "increment-view";
+  }
+
   return action;
 }
 
@@ -1136,6 +1395,10 @@ function looksLikeCreateCommentPayload(body) {
 
 function looksLikeToggleLikePayload(body) {
   return Boolean(body && body.entityType && body.entityId && body.actorId && body.actorName && !body.message);
+}
+
+function looksLikeIncrementViewPayload(body) {
+  return Boolean(body && body.entityType && body.entityId && !body.commentId && !body.actorId && !body.message);
 }
 
 function cleanRequired(value, message, maxLength = 160) {
@@ -1177,6 +1440,7 @@ function countStateEntities(state) {
   const keys = new Set([
     ...Object.keys(state?.commentsState?.entities || {}),
     ...Object.keys(state?.likesState?.entities || {}),
+    ...Object.keys(state?.viewsState?.entities || {}),
   ]);
   return keys.size;
 }

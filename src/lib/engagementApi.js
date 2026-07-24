@@ -1,4 +1,5 @@
 const EMPTY_STATS = {
+  viewCount: 0,
   likeCount: 0,
   commentCount: 0,
   likedBy: [],
@@ -62,6 +63,13 @@ export async function createComment(payload) {
 export async function deleteComment(payload) {
   return postEngagementAction({
     action: "delete-comment",
+    ...payload,
+  });
+}
+
+export async function incrementView(payload) {
+  return postEngagementAction({
+    action: "increment-view",
     ...payload,
   });
 }

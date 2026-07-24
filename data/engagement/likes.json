@@ -1,41 +1,41 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-24T06:21:51.518Z",
+  "updatedAt": "2026-07-24T00:00:00.000Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
-      "legacyCount": 256,
+      "legacyCount": 34,
       "entries": []
     },
     "blog:When Hosting Became Business, Creativity Was Buried": {
-      "legacyCount": 175,
+      "legacyCount": 22,
       "entries": []
     },
     "blog:Why Learning from Scratch Still Matters in the Age of AI": {
-      "legacyCount": 312,
+      "legacyCount": 41,
       "entries": []
     },
     "article:production-projects": {
-      "legacyCount": 23700,
+      "legacyCount": 36,
       "entries": []
     },
     "article:ai-machine-learning": {
-      "legacyCount": 14800,
+      "legacyCount": 27,
       "entries": []
     },
     "article:train-to-thoughts": {
-      "legacyCount": 67400,
+      "legacyCount": 44,
       "entries": []
     },
     "article:available-for-freelancing": {
-      "legacyCount": 5,
+      "legacyCount": 20,
       "entries": []
     },
     "project:Offline Music Library System": {
-      "legacyCount": 0,
+      "legacyCount": 25,
       "entries": []
     },
     "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": {
-      "legacyCount": 0,
+      "legacyCount": 31,
       "entries": []
     }
   }

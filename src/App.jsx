@@ -15,6 +15,7 @@ import {
   fetchEngagementStats,
   formatCount,
   getEntityStats,
+  incrementView,
   parseLooseCount,
   toggleLike,
 } from "./lib/engagementApi";
@@ -365,6 +366,30 @@ function useEngagement() {
     }
   }
 
+  async function handleIncrementView({ entityType, entityId }) {
+    try {
+      const response = await incrementView({
+        entityType,
+        entityId,
+      });
+      setStatsMap(response.stats);
+      setStorage(response.storage);
+      setLastUpdatedAt(response.updatedAt);
+      setError("");
+      return response.stats[entityKey(entityType, entityId)] || null;
+    } catch (viewError) {
+      const message = buildEngagementErrorMessage(viewError);
+      console.error("[engagement-ui] increment view failed", {
+        entityType,
+        entityId,
+        message,
+        requestId: viewError?.requestId || "",
+      });
+      setError(message);
+      throw viewError;
+    }
+  }
+
   return {
     statsMap,
     profile,
@@ -376,6 +401,7 @@ function useEngagement() {
     toggleLike: handleToggleLike,
     createComment: handleCreateComment,
     deleteComment: handleDeleteComment,
+    incrementView: handleIncrementView,
   };
 }
 
@@ -863,7 +889,13 @@ function SocialFooter({ footer }) {
       <footer>
         <div className="social-icons">
           {footer.socials.map((social) => (
-            <a key={social.label} href={social.href} aria-label={social.label}>
+            <a
+              key={social.label}
+              href={social.href}
+              aria-label={social.label}
+              target="_blank"
+              rel="noreferrer"
+            >
               <img src={social.icon} alt="" />
             </a>
           ))}
@@ -1181,10 +1213,32 @@ function getItemsPerView() {
   return 3;
 }
 
+function useViewTracker(engagement, entityType, entityId) {
+  const trackedRef = useRef("");
+
+  useEffect(() => {
+    if (!entityType || !entityId) {
+      return;
+    }
+
+    const key = entityKey(entityType, entityId);
+    if (trackedRef.current === key) {
+      return;
+    }
+
+    trackedRef.current = key;
+    engagement.incrementView({ entityType, entityId }).catch(() => {
+      // Shared engagement state already records the error.
+    });
+  }, [engagement, entityId, entityType]);
+}
+
 function WorkCard({ card, stats, engagement, entityType = "article", entityId = card.slug }) {
   const navigateWithTransition = useTransitionNavigate();
+  const fallbackViewCount = parseLooseCount(card.views);
   const fallbackCommentCount = parseLooseCount(card.comments);
   const fallbackLikeCount = parseLooseCount(card.likes);
+  const viewCount = stats && Number(stats.viewCount) > 0 ? stats.viewCount : fallbackViewCount;
   const commentCount = stats ? stats.commentCount : fallbackCommentCount;
   const likeCount = stats ? stats.likeCount : fallbackLikeCount;
 
@@ -1209,7 +1263,7 @@ function WorkCard({ card, stats, engagement, entityType = "article", entityId = 
         <h3>{card.title}</h3>
         <p>{card.description}</p>
         <div className="blog-footer">
-          <span className="views">{card.views}</span>
+          <span className="views">{formatCount(viewCount)} views</span>
           <span className="comments">{formatCount(commentCount)} comments</span>
           <span className="like">{formatCount(likeCount)} likes</span>
         </div>
@@ -1227,7 +1281,7 @@ function Shell({ siteData, footer = "full", children }) {
     <>
       <Navbar siteData={siteData} />
       {children}
-      {footer === "full" ? <SocialFooter footer={siteData.footer} /> : <MinimalFooter footer={siteData.footer} />}
+      <SocialFooter footer={siteData.footer} />
     </>
   );
 }
@@ -1265,9 +1319,9 @@ function WorksPage({ siteData, engagement }) {
 
   const cards = siteData.home.works.map((card) => ({
     ...card,
-    views: "0 views",
+    views: card.views,
     comments: "0 comments",
-    likes: "5",
+    likes: "20",
   }));
 
   return (
@@ -1294,6 +1348,7 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement }) {
   const navigateWithTransition = useTransitionNavigate();
 
   usePageSetup(page.documentTitle, "post-page");
+  useViewTracker(engagement, "article", slug);
 
   useEffect(() => {
     if (!production) {
@@ -1335,6 +1390,9 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement }) {
             <button className="call-to-blog-button">{page.ctaLabel}</button>
           </TransitionLink>
           <div className="post-engagement-strip">
+            <span className="post-engagement-comments">
+              {formatCount(getEntityStats(engagement.statsMap, "article", slug).viewCount)} views
+            </span>
             <LikeButton entityType="article" entityId={slug} engagement={engagement} className="detail-like-button" />
             <span className="post-engagement-comments">
               {formatCount(getEntityStats(engagement.statsMap, "article", slug).commentCount)} comments
@@ -1374,7 +1432,7 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement }) {
                       <h3>{project.title}</h3>
                       <p>{project.description}</p>
                       <div className="blog-footer">
-                        <span className="views">View Details</span>
+                        <span className="views">{formatCount(getEntityStats(engagement.statsMap, "project", project.id).viewCount)} views</span>
                         <span className="comments">
                           {formatCount(getEntityStats(engagement.statsMap, "project", project.id).commentCount)} comments
                         </span>
@@ -1534,7 +1592,7 @@ function BlogListPage({ siteData, engagement }) {
                   <h3>{post.title}</h3>
                   <p>{post.description}</p>
                   <div className="blog-footer">
-                    <span className="views">{post.views} views</span>
+                    <span className="views">{formatCount(getEntityStats(engagement.statsMap, "blog", post.id).viewCount || post.views)} views</span>
                     <span className="comments">
                       {formatCount(getEntityStats(engagement.statsMap, "blog", post.id).commentCount || post.comments)} comments
                     </span>
@@ -1559,6 +1617,7 @@ function BlogDetailPage({ siteData, engagement }) {
 
   const post = Array.isArray(posts) ? posts.find((item) => item.id === blogId) : null;
   usePageSetup(post ? `${post.title} | Dexteritycoder` : "Writings | Dexteritycoder", "post-page");
+  useViewTracker(engagement, "blog", blogId);
 
   useEffect(() => {
     let active = true;
@@ -1614,6 +1673,9 @@ function BlogDetailPage({ siteData, engagement }) {
           {blogId ? (
             <>
               <div className="post-engagement-strip">
+                <span className="post-engagement-comments">
+                  {formatCount(getEntityStats(engagement.statsMap, "blog", blogId).viewCount || post?.views)} views
+                </span>
                 <LikeButton entityType="blog" entityId={blogId} engagement={engagement} className="detail-like-button" />
                 <span className="post-engagement-comments">
                   {formatCount(getEntityStats(engagement.statsMap, "blog", blogId).commentCount)} comments
@@ -1709,6 +1771,7 @@ function ProjectDetailPage({ siteData, engagement }) {
   const heroTitle = state.project?.heroTitle || state.project?.title || state.repo || "Loading project..";
   const heroMeta = state.project?.meta || (state.owner && state.repo ? `${state.owner}/${state.repo} · ${state.branch}` : "");
   usePageSetup(`${heroTitle} - Dexteritycoder`, "home-page project-detail-page");
+  useViewTracker(engagement, "project", state.project?.id || (!state.loading ? repoQuery : ""));
 
   useEffect(() => {
     let active = true;
@@ -1883,6 +1946,9 @@ function ProjectDetailPage({ siteData, engagement }) {
           {repoQuery ? (
             <>
               <div className="post-engagement-strip">
+                <span className="post-engagement-comments">
+                  {formatCount(getEntityStats(engagement.statsMap, "project", state.project?.id || repoQuery).viewCount)} views
+                </span>
                 <LikeButton
                   entityType="project"
                   entityId={state.project?.id || repoQuery}

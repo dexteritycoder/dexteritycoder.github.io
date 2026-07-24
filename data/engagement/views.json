@@ -3,40 +3,31 @@
   "updatedAt": "2026-07-24T00:00:00.000Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 920
     },
     "blog:When Hosting Became Business, Creativity Was Buried": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 680
     },
     "blog:Why Learning from Scratch Still Matters in the Age of AI": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 980
     },
     "article:production-projects": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 870
     },
     "article:ai-machine-learning": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 730
     },
     "article:train-to-thoughts": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 960
     },
     "article:available-for-freelancing": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 540
     },
     "project:Offline Music Library System": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 610
     },
     "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": {
-      "legacyCount": 0,
-      "entries": []
+      "count": 760
     }
   }
 }
