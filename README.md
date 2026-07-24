@@ -19,3 +19,47 @@ On Vercel, the same handler switches to Postgres when one of these environment v
 Supabase is the recommended deployment target here because the API already uses PostgreSQL directly. Once the connection string is added in Vercel, the handler creates its tables automatically, seeds the initial data from the legacy JSON files on first connect, and serves shared likes/comments to every visitor.
 
 The frontend now re-syncs engagement data in the background, on tab focus, and when the page becomes visible again, so likes and comments added on one device appear on other devices without requiring a hard refresh.
+
+## Auth setup
+
+The site now includes a Supabase Auth-based signup and login structure with:
+
+- email + password signup/login
+- Google OAuth
+- GitHub OAuth
+- role selection for `admin`, `member`, and `visitor`
+- a server-backed `user_profiles` table
+- authenticated likes/comments
+- comment deletion restricted to the original signed-in author
+
+### Environment variables
+
+Add these to Vercel:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `DATABASE_URL`
+- `AUTH_ADMIN_EMAILS` optional
+
+You can copy the template from [.env.example](/C:/Users/Abhin/Workspace/Dexteritycoder-Website/dexteritycoder.github.io/.env.example).
+
+### Redirect routes
+
+Use these app routes in your frontend configuration:
+
+- Production auth callback: `https://dexteritycoder.vercel.app/auth/callback`
+- Local auth callback: `http://localhost:5173/auth/callback`
+
+### Supabase provider setup
+
+For Google and GitHub in Supabase Auth:
+
+1. Open `Authentication` -> `Sign In / Providers` in Supabase.
+2. Enable `Google` and `GitHub`.
+3. Paste the client ID and secret from Google Cloud / GitHub OAuth Apps.
+4. Keep Supabase's callback URL for each provider.
+5. Add the site URL and redirect URLs above in Supabase Auth URL settings.
+
+### Admin access
+
+The role selector is live, but true admin access is only granted automatically when the signed-in email is present in `AUTH_ADMIN_EMAILS`. This prevents arbitrary users from promoting themselves to admin just by choosing the admin role during signup.

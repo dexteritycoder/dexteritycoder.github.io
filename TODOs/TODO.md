@@ -11,3 +11,29 @@
 - Failed to save engagement data.
 - likes counting now synching between devices
 - Add MongoDB as database or try neon or supabase
+
+- All Done
+
+
+# Sign up and Log in
+
+## For Admin
+- Read, write, delete, update permissions
+- Basically Every right
+- Admin panel (For Admin Authority)
+### Admin Panel:
+- Shows stats
+- Can write blog, article and choose page to publish
+- can approve or disapprove comments
+
+## For Members
+- Dashboard (For Member Authority)
+- Write posts - (post goes to a review period when admin will approve)
+- Suggestions Application (Suggestion page) - (suggestion form)
+### Dashboard
+- Can write posts and publish to any page, blogs, or projects or the pages supporting posting.
+- but the post first comes in the admin panel for admin to approve or disapprove, if approve then it starts showing on the website and if not approved then not shown on the website and sends notification to the member that it is rejected and with a reason with it.
+
+## For Normal
+- just login credentials, profile picture, saved likes and comments
+- And gets email updates for updates in the sites (new posts, comments) - Subscribe to newsletter by default

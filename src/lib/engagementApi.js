@@ -1,3 +1,5 @@
+import { getSupabaseClient } from "./supabaseClient";
+
 const EMPTY_STATS = {
   viewCount: 0,
   likeCount: 0,
@@ -25,8 +27,9 @@ export function getEntityStats(statsMap, entityType, entityId) {
 
 export async function fetchEngagementStats() {
   try {
+    const authHeaders = await getAuthHeaders();
     const response = await fetch("/api/engagement", {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...authHeaders },
     });
 
     const payload = await readJsonResponse(response);
@@ -76,11 +79,13 @@ export async function incrementView(payload) {
 
 async function postEngagementAction(payload) {
   try {
+    const authHeaders = await getAuthHeaders();
     const response = await fetch("/api/engagement", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...authHeaders,
       },
       body: JSON.stringify(payload),
     });
@@ -207,4 +212,23 @@ function logClientError(event, error, details = {}) {
     requestId: error?.requestId || "",
     status: error?.status || 0,
   });
+}
+
+async function getAuthHeaders() {
+  try {
+    const supabase = getSupabaseClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      return {};
+    }
+
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+    };
+  } catch {
+    return {};
+  }
 }

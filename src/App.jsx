@@ -28,6 +28,16 @@ import {
   repoSlug,
   rewriteReadmeAssets,
 } from "./lib/projectApi";
+import { fetchAccountProfile, saveAccountProfile } from "./lib/accountApi";
+import {
+  clearPendingRequestedRole,
+  getAuthRedirectUrl,
+  getPendingRequestedRole,
+  getSupabaseClient,
+  resolveSupabasePublishableKey,
+  resolveSupabaseUrl,
+  setPendingRequestedRole,
+} from "./lib/supabaseClient";
 
 function fixText(value) {
   if (typeof value !== "string" || !/[ÂÃâð]/.test(value)) {
@@ -165,7 +175,284 @@ function buildProjectRoute(repo) {
   return `/project/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
 }
 
-function useEngagement() {
+function useSupabaseAuth() {
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [promptMessage, setPromptMessage] = useState("");
+  const configured = Boolean(resolveSupabaseUrl() && resolveSupabasePublishableKey());
+
+  useEffect(() => {
+    if (!configured) {
+      setLoading(false);
+      return undefined;
+    }
+
+    const supabase = getSupabaseClient();
+    let active = true;
+
+    async function initialize() {
+      try {
+        const {
+          data: { session: initialSession },
+        } = await supabase.auth.getSession();
+
+        if (!active) {
+          return;
+        }
+
+        setSession(initialSession);
+        if (initialSession?.user) {
+          const nextProfile = await syncProfile(initialSession.user);
+          if (active) {
+            setProfile(nextProfile);
+          }
+        } else {
+          setProfile(null);
+        }
+      } catch (authError) {
+        if (active) {
+          setError(authError.message);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      console.log("[auth-ui] state change", { event });
+      setSession(nextSession);
+
+      if (!nextSession?.user) {
+        setProfile(null);
+        if (event === "SIGNED_OUT") {
+          setNotice("You have been signed out.");
+        }
+        return;
+      }
+
+      try {
+        const nextProfile = await syncProfile(nextSession.user);
+        if (active) {
+          setProfile(nextProfile);
+          if (event === "SIGNED_IN") {
+            setNotice("You are now signed in.");
+            clearPendingRequestedRole();
+          }
+        }
+      } catch (profileError) {
+        if (active) {
+          setError(profileError.message);
+        }
+      }
+    });
+
+    initialize();
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [configured]);
+
+  async function syncProfile(user, overrides = {}) {
+    const requestedRole = overrides.requestedRole || getPendingRequestedRole() || user?.user_metadata?.requested_role || "visitor";
+    const displayName =
+      overrides.displayName ||
+      user?.user_metadata?.display_name ||
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      (user?.email ? String(user.email).split("@")[0] : "Member");
+
+    const profileData = await saveAccountProfile({
+      displayName,
+      requestedRole,
+      newsletterSubscribed: true,
+    });
+    return profileData;
+  }
+
+  async function signUpWithEmail({ displayName, email, password, requestedRole }) {
+    if (!configured) {
+      throw new Error("Supabase auth is not configured yet.");
+    }
+
+    const supabase = getSupabaseClient();
+    setBusy(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: getAuthRedirectUrl(),
+          data: {
+            display_name: displayName,
+            requested_role: requestedRole,
+          },
+        },
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      setPendingRequestedRole(requestedRole);
+
+      if (data.session?.user) {
+        const nextProfile = await syncProfile(data.session.user, { displayName, requestedRole });
+        setProfile(nextProfile);
+        setSession(data.session);
+        setNotice("Account created successfully.");
+      } else {
+        setNotice("Account created. Check your email to confirm the signup link.");
+      }
+    } catch (authError) {
+      console.error("[auth-ui] signUpWithEmail failed", authError);
+      setError(authError.message);
+      throw authError;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signInWithEmail({ email, password }) {
+    if (!configured) {
+      throw new Error("Supabase auth is not configured yet.");
+    }
+
+    const supabase = getSupabaseClient();
+    setBusy(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      if (data.session?.user) {
+        const nextProfile = await syncProfile(data.session.user);
+        setProfile(nextProfile);
+        setSession(data.session);
+      }
+      setNotice("Signed in successfully.");
+    } catch (authError) {
+      console.error("[auth-ui] signInWithEmail failed", authError);
+      setError(authError.message);
+      throw authError;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signInWithProvider(provider, requestedRole) {
+    if (!configured) {
+      throw new Error("Supabase auth is not configured yet.");
+    }
+
+    const supabase = getSupabaseClient();
+    setBusy(true);
+    setError("");
+    setNotice("");
+
+    try {
+      setPendingRequestedRole(requestedRole);
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: getAuthRedirectUrl(),
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+    } catch (authError) {
+      console.error("[auth-ui] signInWithProvider failed", { provider, error: authError });
+      setError(authError.message);
+      throw authError;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signOutUser() {
+    if (!configured) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    setBusy(true);
+    setError("");
+
+    try {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        throw signOutError;
+      }
+      clearPendingRequestedRole();
+    } catch (authError) {
+      console.error("[auth-ui] signOut failed", authError);
+      setError(authError.message);
+      throw authError;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openAuthPrompt(message) {
+    setPromptMessage(message || "Please sign in to continue.");
+  }
+
+  function closeAuthPrompt() {
+    setPromptMessage("");
+  }
+
+  return {
+    configured,
+    loading,
+    busy,
+    error,
+    notice,
+    promptMessage,
+    session,
+    user: session?.user || null,
+    profile,
+    setError,
+    setNotice,
+    openAuthPrompt,
+    closeAuthPrompt,
+    signUpWithEmail,
+    signInWithEmail,
+    signInWithProvider,
+    signOutUser,
+    refreshProfile: async () => {
+      if (!session?.user) {
+        return null;
+      }
+      const nextProfile = await fetchAccountProfile();
+      setProfile(nextProfile);
+      return nextProfile;
+    },
+  };
+}
+
+function useEngagement(auth) {
   const [statsMap, setStatsMap] = useState({});
   const [profile, setProfile] = useState(() => loadStoredProfile());
   const [error, setError] = useState("");
@@ -239,9 +526,9 @@ function useEngagement() {
 
   function saveProfile(updates) {
     setProfile((current) => ({
-      actorId: current.actorId || createActorId(),
-      name: updates.name ?? current.name ?? "",
-      email: updates.email ?? current.email ?? "",
+      actorId: auth.user?.id || current.actorId || createActorId(),
+      name: updates.name ?? auth.profile?.displayName ?? current.name ?? "",
+      email: updates.email ?? auth.user?.email ?? current.email ?? "",
     }));
   }
 
@@ -265,10 +552,15 @@ function useEngagement() {
   }
 
   async function handleToggleLike({ entityType, entityId, actorName }) {
+    if (!auth.user) {
+      auth.openAuthPrompt("Sign in to like posts, articles, and projects.");
+      throw new Error("Please sign in to like this content.");
+    }
+
     const nextProfile = {
-      actorId: profile.actorId || createActorId(),
-      name: actorName || profile.name || "Guest",
-      email: profile.email,
+      actorId: auth.user.id,
+      name: actorName || auth.profile?.displayName || profile.name || "Member",
+      email: auth.user.email || profile.email,
     };
     setProfile(nextProfile);
     setError("");
@@ -306,10 +598,15 @@ function useEngagement() {
   }
 
   async function handleCreateComment({ entityType, entityId, authorName, authorEmail, message }) {
+    if (!auth.user) {
+      auth.openAuthPrompt("Sign in to post comments and keep them attached to your account.");
+      throw new Error("Please sign in to comment.");
+    }
+
     const nextProfile = {
-      actorId: profile.actorId || createActorId(),
-      name: authorName || profile.name,
-      email: authorEmail ?? profile.email,
+      actorId: auth.user.id,
+      name: authorName || auth.profile?.displayName || profile.name,
+      email: auth.user.email || authorEmail || profile.email,
     };
     setProfile(nextProfile);
 
@@ -341,6 +638,11 @@ function useEngagement() {
   }
 
   async function handleDeleteComment({ entityType, entityId, commentId }) {
+    if (!auth.user) {
+      auth.openAuthPrompt("Sign in to manage your comments.");
+      throw new Error("Please sign in to delete your comment.");
+    }
+
     try {
       const response = await deleteComment({
         entityType,
@@ -392,7 +694,12 @@ function useEngagement() {
 
   return {
     statsMap,
-    profile,
+    profile: {
+      actorId: auth.user?.id || profile.actorId,
+      name: auth.profile?.displayName || profile.name,
+      email: auth.user?.email || profile.email,
+    },
+    auth,
     error,
     storage,
     lastUpdatedAt,
@@ -501,6 +808,7 @@ function TransitionLink({ href, className, children, style, ...rest }) {
 function EngagementPanel({ entityType, entityId, engagement, title = "Comments & Likes" }) {
   const stats = getEntityStats(engagement.statsMap, entityType, entityId);
   const viewerHasLiked = stats.likedBy.some((entry) => entry.actorId === engagement.profile.actorId);
+  const signedIn = Boolean(engagement.auth?.user);
   const [authorName, setAuthorName] = useState(engagement.profile.name || "");
   const [authorEmail, setAuthorEmail] = useState(engagement.profile.email || "");
   const [message, setMessage] = useState("");
@@ -514,6 +822,12 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
   }, [engagement.profile.email, engagement.profile.name]);
 
   async function handleLikeClick() {
+    if (!signedIn) {
+      engagement.auth.openAuthPrompt("Sign in to like posts, articles, and projects.");
+      setActionError("Please sign in to like this content.");
+      return;
+    }
+
     const trimmedName = authorName.trim() || engagement.profile.name.trim();
     if (!trimmedName) {
       setActionError("Enter your name before liking this post.");
@@ -611,34 +925,44 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
       {engagement.error ? <p className="engagement-error">{engagement.error}</p> : null}
 
       <form className="engagement-form" onSubmit={handleSubmit}>
-        <div className="engagement-form-grid">
-          <input
-            type="text"
-            placeholder="Your name"
-            value={authorName}
-            onChange={(event) => setAuthorName(event.target.value)}
-            maxLength={80}
-            required
-          />
-          <input
-            type="email"
-            placeholder="Email (optional)"
-            value={authorEmail}
-            onChange={(event) => setAuthorEmail(event.target.value)}
-            maxLength={160}
-          />
-        </div>
+        {signedIn ? (
+          <p className="engagement-auth-note">Signed in as {engagement.profile.name || engagement.auth.user.email}</p>
+        ) : (
+          <div className="engagement-form-grid">
+            <input
+              type="text"
+              placeholder="Your name"
+              value={authorName}
+              onChange={(event) => setAuthorName(event.target.value)}
+              maxLength={80}
+              required
+            />
+            <input
+              type="email"
+              placeholder="Email (optional)"
+              value={authorEmail}
+              onChange={(event) => setAuthorEmail(event.target.value)}
+              maxLength={160}
+            />
+          </div>
+        )}
         <textarea
-          placeholder="Write your comment here..."
+          placeholder={signedIn ? "Write your comment here..." : "Sign in to write a comment..."}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           rows="5"
           maxLength={2000}
           required
+          disabled={!signedIn}
         ></textarea>
-        <button type="submit" className="engagement-submit-btn" disabled={busyAction === "comment"}>
+        <button type="submit" className="engagement-submit-btn" disabled={busyAction === "comment" || !signedIn}>
           {busyAction === "comment" ? "Posting..." : "Post Comment"}
         </button>
+        {!signedIn ? (
+          <button type="button" className="engagement-submit-btn" onClick={() => engagement.auth.openAuthPrompt("Sign in to comment and keep your activity saved to your account.")}>
+            Sign Up / Log In
+          </button>
+        ) : null}
       </form>
 
       <div className="engagement-comments">
@@ -652,14 +976,15 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
                   <strong>{comment.authorName}</strong>
                   <span>{formatCommentDate(comment.createdAt)}</span>
                 </div>
-                <button
-                  type="button"
-                  className="engagement-comment-remove-btn"
-                  onClick={() => handleDeleteCommentClick(comment.id)}
-                  disabled={busyCommentId === comment.id}
-                >
-                  {busyCommentId === comment.id ? "Removing..." : "Remove"}
-                </button>
+                  <button
+                    type="button"
+                    className="engagement-comment-remove-btn"
+                    onClick={() => handleDeleteCommentClick(comment.id)}
+                    disabled={busyCommentId === comment.id}
+                    hidden={comment.actorId !== engagement.auth?.user?.id}
+                  >
+                    {busyCommentId === comment.id ? "Removing..." : "Remove"}
+                  </button>
               </div>
               <p>{comment.message}</p>
             </article>
@@ -755,6 +1080,7 @@ function applyOptimisticLikeToggle(currentStatsMap, entityType, entityId, actor)
 
 function CommentsPanel({ entityType, entityId, engagement, title = "Comments" }) {
   const stats = getEntityStats(engagement.statsMap, entityType, entityId);
+  const signedIn = Boolean(engagement.auth?.user);
   const [authorName, setAuthorName] = useState(engagement.profile.name || "");
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState("");
@@ -825,26 +1151,36 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
 
         <form className="engagement-form" onSubmit={handleSubmit}>
           <div className="engagement-form-top">
-            <input
-              type="text"
-              placeholder="Your name"
-              value={authorName}
-              onChange={(event) => setAuthorName(event.target.value)}
-              maxLength={80}
-              required
-            />
-            <button type="submit" className="engagement-submit-btn" disabled={busyAction === "comment"}>
+            {!signedIn ? (
+              <input
+                type="text"
+                placeholder="Your name"
+                value={authorName}
+                onChange={(event) => setAuthorName(event.target.value)}
+                maxLength={80}
+                required
+              />
+            ) : (
+              <p className="engagement-auth-note">Signed in as {engagement.profile.name || engagement.auth.user.email}</p>
+            )}
+            <button type="submit" className="engagement-submit-btn" disabled={busyAction === "comment" || !signedIn}>
               {busyAction === "comment" ? "Posting..." : "Comment"}
             </button>
           </div>
           <textarea
-            placeholder="Write a comment..."
+            placeholder={signedIn ? "Write a comment..." : "Sign in to write a comment..."}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             rows="3"
             maxLength={2000}
             required
+            disabled={!signedIn}
           ></textarea>
+          {!signedIn ? (
+            <button type="button" className="engagement-submit-btn" onClick={() => engagement.auth.openAuthPrompt("Sign in to comment and keep your activity saved to your account.")}>
+              Sign Up / Log In
+            </button>
+          ) : null}
         </form>
       </div>
 
@@ -869,6 +1205,7 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
                     className="engagement-comment-remove-btn"
                     onClick={() => handleDeleteCommentClick(comment.id)}
                     disabled={busyCommentId === comment.id}
+                    hidden={comment.actorId !== engagement.auth?.user?.id}
                   >
                     {busyCommentId === comment.id ? "Removing..." : "Remove"}
                   </button>
@@ -932,7 +1269,7 @@ function MinimalFooter({ footer }) {
   );
 }
 
-function Navbar({ siteData }) {
+function Navbar({ siteData, auth }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -995,6 +1332,29 @@ function Navbar({ siteData }) {
                 <li>{item.label}</li>
               </TransitionLink>
             ))}
+            {auth.user ? (
+              <>
+                <TransitionLink href="/account" onClick={() => setMenuOpen(false)}>
+                  <li>ACCOUNT</li>
+                </TransitionLink>
+                <a
+                  href="#sign-out"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setMenuOpen(false);
+                    auth.signOutUser().catch(() => {
+                      // Error state is already tracked by auth.
+                    });
+                  }}
+                >
+                  <li>LOG OUT</li>
+                </a>
+              </>
+            ) : (
+              <TransitionLink href="/auth" className="nav-auth-cta" onClick={() => setMenuOpen(false)}>
+                <li>SIGN UP</li>
+              </TransitionLink>
+            )}
           </ul>
         </div>
       </div>
@@ -1276,21 +1636,21 @@ function MarkdownContent({ markdown }) {
   return <section className="post-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(markdown) }}></section>;
 }
 
-function Shell({ siteData, footer = "full", children }) {
+function Shell({ siteData, auth, children }) {
   return (
     <>
-      <Navbar siteData={siteData} />
+      <Navbar siteData={siteData} auth={auth || { user: null, signOutUser: async () => {} }} />
       {children}
       <SocialFooter footer={siteData.footer} />
     </>
   );
 }
 
-function HomePage({ siteData, engagement }) {
+function HomePage({ siteData, engagement, auth }) {
   usePageSetup("Dexteritycoder", "home-page");
 
   return (
-    <Shell siteData={siteData} footer="full">
+    <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml={siteData.home.heroTitleHtml} />
       <section className="home-blog-grid">
         {siteData.home.works.map((card) => (
@@ -1314,7 +1674,7 @@ function HomePage({ siteData, engagement }) {
   );
 }
 
-function WorksPage({ siteData, engagement }) {
+function WorksPage({ siteData, engagement, auth }) {
   usePageSetup("Writings | Dexteritycoder", "home-page");
 
   const cards = siteData.home.works.map((card) => ({
@@ -1325,7 +1685,7 @@ function WorksPage({ siteData, engagement }) {
   }));
 
   return (
-    <Shell siteData={siteData} footer="full">
+    <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml={siteData.works.listing.heroTitleHtml} />
       <section className="home-blog-grid">
         {cards.map((card) => (
@@ -1341,7 +1701,7 @@ function WorksPage({ siteData, engagement }) {
   );
 }
 
-function WorkMarkdownPage({ siteData, slug, production = false, engagement }) {
+function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth }) {
   const page = siteData.works.pages[slug];
   const { data, error, loading } = useText(page.markdownPath);
   const [projects, setProjects] = useState([]);
@@ -1374,7 +1734,7 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement }) {
   }, [production]);
 
   return (
-    <Shell siteData={siteData} footer="minimal">
+    <Shell siteData={siteData} auth={auth}>
       <Hero
         titleHtml={page.heroTitle}
         backgroundImage={page.heroImage}
@@ -1450,12 +1810,12 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement }) {
   );
 }
 
-function AboutPage({ siteData }) {
+function AboutPage({ siteData, auth }) {
   const { data, error, loading } = useText(siteData.about.markdownPath);
   usePageSetup(siteData.about.documentTitle);
 
   return (
-    <Shell siteData={siteData} footer="full">
+    <Shell siteData={siteData} auth={auth}>
       <Hero
         titleHtml={siteData.about.heroTitleHtml}
         titleStyle={{ fontSize: "clamp(1.45rem, 1.3vw + 1.05rem, 2.2rem)" }}
@@ -1475,11 +1835,11 @@ function AboutPage({ siteData }) {
   );
 }
 
-function ContactPage({ siteData }) {
+function ContactPage({ siteData, auth }) {
   usePageSetup(siteData.contact.documentTitle);
 
   return (
-    <Shell siteData={siteData} footer="full">
+    <Shell siteData={siteData} auth={auth}>
       <Hero
         titleHtml={siteData.contact.heroTitleHtml}
         titleStyle={{ fontSize: "clamp(1.45rem, 1.3vw + 1.05rem, 2.2rem)" }}
@@ -1508,11 +1868,11 @@ function ContactPage({ siteData }) {
   );
 }
 
-function DonatePage({ siteData }) {
+function DonatePage({ siteData, auth }) {
   usePageSetup(siteData.donate.documentTitle);
 
   return (
-    <Shell siteData={siteData} footer="full">
+    <Shell siteData={siteData} auth={auth}>
       <Hero
         titleHtml={siteData.donate.heroTitleHtml}
         titleStyle={{ fontSize: "clamp(1.45rem, 1.3vw + 1.05rem, 2.2rem)" }}
@@ -1530,7 +1890,7 @@ function DonatePage({ siteData }) {
   );
 }
 
-function BlogListPage({ siteData, engagement }) {
+function BlogListPage({ siteData, engagement, auth }) {
   const { data, error, loading } = useJson("/BlogPosts/posts.json");
   const [search, setSearch] = useState("");
   const navigateWithTransition = useTransitionNavigate();
@@ -1551,7 +1911,7 @@ function BlogListPage({ siteData, engagement }) {
   });
 
   return (
-    <Shell siteData={siteData} footer="full">
+    <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml={siteData.blogs.heroTitleHtml} />
       <div className="blog-search-container">
         <input
@@ -1607,7 +1967,7 @@ function BlogListPage({ siteData, engagement }) {
   );
 }
 
-function BlogDetailPage({ siteData, engagement }) {
+function BlogDetailPage({ siteData, engagement, auth }) {
   const location = useLocation();
   const { blogId: blogIdParam } = useParams();
   const blogId = blogIdParam || new URLSearchParams(location.search).get("blog");
@@ -1655,7 +2015,7 @@ function BlogDetailPage({ siteData, engagement }) {
   const heroHtml = post ? post.title : "Writing Not Found";
 
   return (
-    <Shell siteData={siteData} footer="minimal">
+    <Shell siteData={siteData} auth={auth}>
       <Hero
         titleHtml={heroHtml}
         backgroundImage={post?.image}
@@ -1745,7 +2105,7 @@ function FileIcon() {
   );
 }
 
-function ProjectDetailPage({ siteData, engagement }) {
+function ProjectDetailPage({ siteData, engagement, auth }) {
   const location = useLocation();
   const { owner: ownerParam, repo: repoParam } = useParams();
   const repoQuery =
@@ -1884,7 +2244,7 @@ function ProjectDetailPage({ siteData, engagement }) {
   }
 
   return (
-    <Shell siteData={siteData} footer="minimal">
+    <Shell siteData={siteData} auth={auth}>
       <Hero
         titleHtml={`<b>${heroTitle}</b>`}
         meta={heroMeta}
@@ -1991,6 +2351,351 @@ function LoadingScreen() {
   );
 }
 
+function AuthPromptModal({ message, onClose }) {
+  const navigateWithTransition = useTransitionNavigate();
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className="auth-modal-backdrop" role="dialog" aria-modal="true" aria-label="Authentication required">
+      <div className="auth-modal-card">
+        <h2>Sign In Required</h2>
+        <p>{message}</p>
+        <div className="auth-modal-actions">
+          <button type="button" className="engagement-submit-btn" onClick={() => navigateWithTransition("/auth")}>
+            Open Sign Up / Login
+          </button>
+          <button type="button" className="engagement-like-btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthRoleDropdown({ role, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [activeInfo, setActiveInfo] = useState("");
+  const rootRef = useRef(null);
+  const options = [
+    { value: "visitor", label: "Visitor", note: "Can like, comment, and maintain a profile." },
+    { value: "member", label: "Member", note: "Can publish through a review workflow later." },
+    { value: "admin", label: "Admin", note: "Full control, best paired with an allowlist." },
+  ];
+  const selected = options.find((option) => option.value === role) || options[0];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+        setActiveInfo("");
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setActiveInfo("");
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  return (
+    <div className="auth-role-dropdown" ref={rootRef}>
+      <span className="auth-role-select-label">Account type</span>
+      <button
+        type="button"
+        className={`auth-role-trigger${open ? " is-open" : ""}`}
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span>{selected.label}</span>
+        <span className="auth-role-trigger-chevron" aria-hidden="true">▾</span>
+      </button>
+      {open ? (
+        <div className="auth-role-menu" role="listbox" aria-label="Account type options">
+          {options.map((option) => (
+            <div
+              key={option.value}
+              className={`auth-role-menu-option${role === option.value ? " is-active" : ""}`}
+            >
+              <button
+                type="button"
+                className="auth-role-menu-select"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                  setActiveInfo("");
+                }}
+              >
+                <span className="auth-role-menu-label">{option.label}</span>
+              </button>
+              <button
+                type="button"
+                className="auth-role-menu-info"
+                aria-label={option.note}
+                title={option.note}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveInfo((current) => (current === option.value ? "" : option.value));
+                }}
+              >
+                i
+                <span className={`auth-role-menu-tooltip${activeInfo === option.value ? " is-visible" : ""}`}>
+                  {option.note}
+                </span>
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AuthPage({ siteData, auth }) {
+  const [mode, setMode] = useState("signup");
+  const [role, setRole] = useState("visitor");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const navigateWithTransition = useTransitionNavigate();
+
+  usePageSetup("Sign Up | Dexteritycoder", "post-page");
+
+  useEffect(() => {
+    if (auth.user) {
+      navigateWithTransition("/account");
+    }
+  }, [auth.user]);
+
+  async function handleEmailSubmit(event) {
+    event.preventDefault();
+    auth.setError("");
+    auth.setNotice("");
+
+    try {
+      if (mode === "signup") {
+        await auth.signUpWithEmail({
+          displayName,
+          email,
+          password,
+          requestedRole: role,
+        });
+      } else {
+        await auth.signInWithEmail({
+          email,
+          password,
+        });
+        navigateWithTransition("/account");
+      }
+    } catch {
+      // Shared auth state already holds the error.
+    }
+  }
+
+  async function handleProviderSignIn(provider) {
+    auth.setError("");
+    auth.setNotice("");
+
+    try {
+      await auth.signInWithProvider(provider, role);
+    } catch {
+      // Shared auth state already holds the error.
+    }
+  }
+
+  return (
+    <Shell siteData={siteData} auth={auth}>
+      <Hero titleHtml="<b>SIGN</b> UP / <b>LOG IN</b>" titleStyle={{ fontSize: "clamp(1.6rem, 1.4vw + 1rem, 2.4rem)" }} />
+      <main className="auth-page-shell">
+        <section className="auth-card">
+          <div className="auth-mode-switch">
+            <button type="button" className={mode === "signup" ? "is-active" : ""} onClick={() => setMode("signup")}>
+              Sign Up
+            </button>
+            <button type="button" className={mode === "login" ? "is-active" : ""} onClick={() => setMode("login")}>
+              Log In
+            </button>
+          </div>
+
+          {!auth.configured ? (
+            <p className="engagement-error">
+              Supabase auth is not configured yet. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` first.
+            </p>
+          ) : null}
+          {auth.error ? <p className="engagement-error">{auth.error}</p> : null}
+          {auth.notice ? <p className="auth-success">{auth.notice}</p> : null}
+
+          <div className="auth-role-picker">
+            <AuthRoleDropdown role={role} onChange={setRole} />
+          </div>
+
+          <div className="auth-provider-grid">
+            <button type="button" className="auth-provider-btn" onClick={() => handleProviderSignIn("google")} disabled={!auth.configured || auth.busy}>
+              <span className="auth-provider-icon" aria-hidden="true">
+                <img src="/images/google.svg" alt="" />
+              </span>
+              <span>Continue with Google</span>
+            </button>
+            <button type="button" className="auth-provider-btn" onClick={() => handleProviderSignIn("github")} disabled={!auth.configured || auth.busy}>
+              <span className="auth-provider-icon" aria-hidden="true">
+                <img src="/images/github.svg" alt="" />
+              </span>
+              <span>Continue with GitHub</span>
+            </button>
+          </div>
+
+          <div className="auth-divider"><span>or use email</span></div>
+
+          <form className="auth-form" onSubmit={handleEmailSubmit}>
+            {mode === "signup" ? (
+              <input
+                type="text"
+                placeholder="Display name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                maxLength={80}
+                required
+              />
+            ) : null}
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              maxLength={160}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+            <button type="submit" className="auth-submit-btn" disabled={!auth.configured || auth.busy}>
+              {auth.busy ? "Working..." : mode === "signup" ? "Create Account" : "Log In"}
+            </button>
+          </form>
+
+          <div className="auth-help-text">
+            <p>Google and GitHub OAuth will start working once you add the provider keys in Supabase and the public env vars in Vercel.</p>
+            <p>Admin requests are stored, but unrestricted admin access should still be limited with `AUTH_ADMIN_EMAILS`.</p>
+          </div>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function AuthCallbackPage({ siteData, auth }) {
+  const navigate = useNavigate();
+  usePageSetup("Signing In | Dexteritycoder", "post-page");
+
+  useEffect(() => {
+    if (!auth.loading && auth.user) {
+      navigate("/account", { replace: true });
+    }
+  }, [auth.loading, auth.user, navigate]);
+
+  return (
+    <Shell siteData={siteData} auth={auth}>
+      <Hero titleHtml="<b>FINISHING</b> SIGN IN" />
+      <main className="post-article">
+        <p>{auth.error || "Completing your sign in..."}</p>
+      </main>
+    </Shell>
+  );
+}
+
+function AccountPage({ siteData, auth }) {
+  usePageSetup("Account | Dexteritycoder", "post-page");
+
+  if (auth.loading) {
+    return (
+      <Shell siteData={siteData} auth={auth}>
+        <Hero titleHtml="<b>ACCOUNT</b>" />
+        <main className="post-article"><p>Loading your account...</p></main>
+      </Shell>
+    );
+  }
+
+  if (!auth.user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  const profile = auth.profile || {
+    displayName: auth.user.email || "Member",
+    email: auth.user.email || "",
+    role: "visitor",
+    requestedRole: "visitor",
+    authProvider: "email",
+  };
+
+  const roleCards = {
+    admin: [
+      "Read, write, update, and delete permissions",
+      "Admin panel foundation for site stats and moderation",
+      "Future blog/article publishing controls",
+    ],
+    member: [
+      "Member dashboard foundation",
+      "Future content submission workflow for admin review",
+      "Future suggestions and notifications flow",
+    ],
+    visitor: [
+      "Saved likes and comments through your account",
+      "Newsletter subscription enabled by default",
+      "Profile-based engagement and future saved activity history",
+    ],
+  };
+
+  return (
+    <Shell siteData={siteData} auth={auth}>
+      <Hero titleHtml="<b>YOUR</b> ACCOUNT" />
+      <main className="auth-page-shell">
+        <section className="auth-card">
+          <h2>{profile.displayName}</h2>
+          <p className="auth-account-meta">{profile.email}</p>
+          <div className="auth-account-grid">
+            <div>
+              <strong>Role</strong>
+              <p>{profile.role}</p>
+            </div>
+            <div>
+              <strong>Requested role</strong>
+              <p>{profile.requestedRole}</p>
+            </div>
+            <div>
+              <strong>Provider</strong>
+              <p>{profile.authProvider}</p>
+            </div>
+          </div>
+          <div className="auth-dashboard-list">
+            {roleCards[profile.role] ? roleCards[profile.role].map((item) => <p key={item}>{item}</p>) : null}
+          </div>
+          <button type="button" className="engagement-submit-btn" onClick={() => auth.signOutUser().catch(() => {})}>
+            Log Out
+          </button>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
 function formatCommentDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -2005,24 +2710,27 @@ function LegacyWritingRedirect() {
   return <Navigate to={`/writings/${encodeURIComponent(blogId || "")}`} replace />;
 }
 
-function AppRoutes({ siteData, engagement }) {
+function AppRoutes({ siteData, engagement, auth }) {
   return (
     <Routes>
-      <Route path="/" element={<HomePage siteData={siteData} engagement={engagement} />} />
+      <Route path="/" element={<HomePage siteData={siteData} engagement={engagement} auth={auth} />} />
       <Route path="/index.html" element={<Navigate to="/" replace />} />
-      <Route path="/works" element={<WorksPage siteData={siteData} engagement={engagement} />} />
-      <Route path="/production-projects" element={<WorkMarkdownPage siteData={siteData} slug="production-projects" production engagement={engagement} />} />
-      <Route path="/ai-machine-learning" element={<WorkMarkdownPage siteData={siteData} slug="ai-machine-learning" engagement={engagement} />} />
-      <Route path="/train-to-thoughts" element={<WorkMarkdownPage siteData={siteData} slug="train-to-thoughts" engagement={engagement} />} />
-      <Route path="/available-for-freelancing" element={<WorkMarkdownPage siteData={siteData} slug="available-for-freelancing" engagement={engagement} />} />
-      <Route path="/about" element={<AboutPage siteData={siteData} />} />
-      <Route path="/contact" element={<ContactPage siteData={siteData} />} />
-      <Route path="/donate" element={<DonatePage siteData={siteData} />} />
-      <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} />} />
-      <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} />} />
+      <Route path="/works" element={<WorksPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/production-projects" element={<WorkMarkdownPage siteData={siteData} slug="production-projects" production engagement={engagement} auth={auth} />} />
+      <Route path="/ai-machine-learning" element={<WorkMarkdownPage siteData={siteData} slug="ai-machine-learning" engagement={engagement} auth={auth} />} />
+      <Route path="/train-to-thoughts" element={<WorkMarkdownPage siteData={siteData} slug="train-to-thoughts" engagement={engagement} auth={auth} />} />
+      <Route path="/available-for-freelancing" element={<WorkMarkdownPage siteData={siteData} slug="available-for-freelancing" engagement={engagement} auth={auth} />} />
+      <Route path="/about" element={<AboutPage siteData={siteData} auth={auth} />} />
+      <Route path="/contact" element={<ContactPage siteData={siteData} auth={auth} />} />
+      <Route path="/donate" element={<DonatePage siteData={siteData} auth={auth} />} />
+      <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/auth" element={<AuthPage siteData={siteData} auth={auth} />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage siteData={siteData} auth={auth} />} />
+      <Route path="/account" element={<AccountPage siteData={siteData} auth={auth} />} />
       <Route path="/blog" element={<Navigate to="/writings" replace />} />
       <Route path="/blog/:blogId" element={<LegacyWritingRedirect />} />
-      <Route path="/project/:owner/:repo" element={<ProjectDetailPage siteData={siteData} engagement={engagement} />} />
+      <Route path="/project/:owner/:repo" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
       <Route path="/pages/blog.html" element={<Navigate to="/writings" replace />} />
       <Route path="/pages/production-projects.html" element={<Navigate to="/production-projects" replace />} />
       <Route path="/pages/ai-machine-learning.html" element={<Navigate to="/ai-machine-learning" replace />} />
@@ -2032,8 +2740,8 @@ function AppRoutes({ siteData, engagement }) {
       <Route path="/pages/contact.html" element={<Navigate to="/contact" replace />} />
       <Route path="/pages/donate.html" element={<Navigate to="/donate" replace />} />
       <Route path="/Blogs/blog-list.html" element={<Navigate to="/writings" replace />} />
-      <Route path="/Blogs/blog-detail.html" element={<BlogDetailPage siteData={siteData} engagement={engagement} />} />
-      <Route path="/pages/project-detail.html" element={<ProjectDetailPage siteData={siteData} engagement={engagement} />} />
+      <Route path="/Blogs/blog-detail.html" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/pages/project-detail.html" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
       <Route path="/pages/post1.html" element={<Navigate to="/production-projects" replace />} />
       <Route path="/pages/post2.html" element={<Navigate to="/ai-machine-learning" replace />} />
       <Route path="/pages/post3.html" element={<Navigate to="/train-to-thoughts" replace />} />
@@ -2045,7 +2753,8 @@ function AppRoutes({ siteData, engagement }) {
 
 export default function App() {
   const { data, error, loading } = useJson("/data/site-content.json");
-  const engagement = useEngagement();
+  const auth = useSupabaseAuth();
+  const engagement = useEngagement(auth);
 
   if (loading) {
     return <LoadingScreen />;
@@ -2059,5 +2768,10 @@ export default function App() {
     );
   }
 
-  return <AppRoutes siteData={data} engagement={engagement} />;
+  return (
+    <>
+      <AppRoutes siteData={data} engagement={engagement} auth={auth} />
+      <AuthPromptModal message={auth.promptMessage} onClose={auth.closeAuthPrompt} />
+    </>
+  );
 }

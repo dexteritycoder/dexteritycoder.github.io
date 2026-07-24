@@ -2,6 +2,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { Pool } = require("pg");
 const { get, put, BlobNotFoundError } = require("@vercel/blob");
+const { deriveDisplayName, requireSupabaseUser } = require("./_supabaseAuth");
 
 const COMMENTS_PATH = "data/engagement/comments.json";
 const LIKES_PATH = "data/engagement/likes.json";
@@ -101,7 +102,8 @@ module.exports = async function handler(req, res) {
       }
 
       if (action === "toggle-like") {
-        const state = await handleToggleLikeByMode(storage, body);
+        const auth = await requireSupabaseUser(req);
+        const state = await handleToggleLikeByMode(storage, body, auth.user);
         logInfo("request.success", {
           requestId,
           method: req.method,
@@ -114,7 +116,8 @@ module.exports = async function handler(req, res) {
       }
 
       if (action === "comment") {
-        const state = await handleCreateCommentByMode(storage, body);
+        const auth = await requireSupabaseUser(req);
+        const state = await handleCreateCommentByMode(storage, body, auth.user);
         logInfo("request.success", {
           requestId,
           method: req.method,
@@ -127,7 +130,8 @@ module.exports = async function handler(req, res) {
       }
 
       if (action === "delete-comment") {
-        const state = await handleDeleteCommentByMode(storage, body);
+        const auth = await requireSupabaseUser(req);
+        const state = await handleDeleteCommentByMode(storage, body, auth.user);
         logInfo("request.success", {
           requestId,
           method: req.method,
@@ -200,34 +204,34 @@ async function loadStateByMode(storage) {
   return loadStateFromFiles();
 }
 
-async function handleToggleLikeByMode(storage, body) {
+async function handleToggleLikeByMode(storage, body, authUser) {
   if (storage === "database") {
-    return handleToggleLikeInDatabase(body);
+    return handleToggleLikeInDatabase(body, authUser);
   }
   if (storage === "blob") {
-    return handleToggleLikeInBlob(body);
+    return handleToggleLikeInBlob(body, authUser);
   }
-  return handleToggleLikeInFiles(body);
+  return handleToggleLikeInFiles(body, authUser);
 }
 
-async function handleCreateCommentByMode(storage, body) {
+async function handleCreateCommentByMode(storage, body, authUser) {
   if (storage === "database") {
-    return handleCreateCommentInDatabase(body);
+    return handleCreateCommentInDatabase(body, authUser);
   }
   if (storage === "blob") {
-    return handleCreateCommentInBlob(body);
+    return handleCreateCommentInBlob(body, authUser);
   }
-  return handleCreateCommentInFiles(body);
+  return handleCreateCommentInFiles(body, authUser);
 }
 
-async function handleDeleteCommentByMode(storage, body) {
+async function handleDeleteCommentByMode(storage, body, authUser) {
   if (storage === "database") {
-    return handleDeleteCommentInDatabase(body);
+    return handleDeleteCommentInDatabase(body, authUser);
   }
   if (storage === "blob") {
-    return handleDeleteCommentInBlob(body);
+    return handleDeleteCommentInBlob(body, authUser);
   }
-  return handleDeleteCommentInFiles(body);
+  return handleDeleteCommentInFiles(body, authUser);
 }
 
 async function handleIncrementViewByMode(storage, body) {
@@ -240,11 +244,11 @@ async function handleIncrementViewByMode(storage, body) {
   return handleIncrementViewInFiles(body);
 }
 
-async function handleToggleLikeInFiles(body) {
+async function handleToggleLikeInFiles(body, authUser) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
-  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
-  const actorName = cleanRequired(body.actorName, "Actor name is required.");
+  const actorId = cleanRequired(authUser?.id, "Authenticated user ID is required.");
+  const actorName = deriveDisplayName(authUser, cleanOptional(body.actorName, 80));
   const likeState = await loadLikeStateFromFile();
   const key = buildEntityKey(entityType, entityId);
   const entity = ensureEntityRecord(likeState.entities, key);
@@ -267,12 +271,12 @@ async function handleToggleLikeInFiles(body) {
   return loadStateFromFiles();
 }
 
-async function handleCreateCommentInFiles(body) {
+async function handleCreateCommentInFiles(body, authUser) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
-  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
-  const authorName = cleanRequired(body.authorName, "Author name is required.");
-  const authorEmail = cleanOptional(body.authorEmail, 160);
+  const actorId = cleanRequired(authUser?.id, "Authenticated user ID is required.");
+  const authorName = deriveDisplayName(authUser, cleanOptional(body.authorName, 80));
+  const authorEmail = cleanOptional(authUser?.email, 160);
   const message = cleanRequired(body.message, "Comment is required.", 2000);
   const commentsState = await loadCommentStateFromFile();
   const key = buildEntityKey(entityType, entityId);
@@ -294,18 +298,22 @@ async function handleCreateCommentInFiles(body) {
   return loadStateFromFiles();
 }
 
-async function handleDeleteCommentInFiles(body) {
+async function handleDeleteCommentInFiles(body, authUser) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
   const commentId = cleanRequired(body.commentId, "Comment ID is required.");
   const commentsState = await loadCommentStateFromFile();
   const key = buildEntityKey(entityType, entityId);
   const entity = ensureEntityRecord(commentsState.entities, key);
-  const nextEntries = entity.entries.filter((entry) => entry.id !== commentId);
-
-  if (nextEntries.length === entity.entries.length) {
+  const comment = entity.entries.find((entry) => entry.id === commentId);
+  if (!comment) {
     throw createHttpError(404, "Comment not found.");
   }
+  if (String(comment.actorId || "") !== String(authUser?.id || "")) {
+    throw createHttpError(403, "Only the author of this comment can delete it.");
+  }
+
+  const nextEntries = entity.entries.filter((entry) => entry.id !== commentId);
 
   entity.entries = nextEntries;
   commentsState.entities[key] = entity;
@@ -328,11 +336,11 @@ async function handleIncrementViewInFiles(body) {
   return loadStateFromFiles();
 }
 
-async function handleToggleLikeInBlob(body) {
+async function handleToggleLikeInBlob(body, authUser) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
-  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
-  const actorName = cleanRequired(body.actorName, "Actor name is required.");
+  const actorId = cleanRequired(authUser?.id, "Authenticated user ID is required.");
+  const actorName = deriveDisplayName(authUser, cleanOptional(body.actorName, 80));
   const likeState = await loadLikeStateFromBlob();
   const key = buildEntityKey(entityType, entityId);
   const entity = ensureEntityRecord(likeState.entities, key);
@@ -355,12 +363,12 @@ async function handleToggleLikeInBlob(body) {
   return loadStateFromBlob();
 }
 
-async function handleCreateCommentInBlob(body) {
+async function handleCreateCommentInBlob(body, authUser) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
-  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
-  const authorName = cleanRequired(body.authorName, "Author name is required.");
-  const authorEmail = cleanOptional(body.authorEmail, 160);
+  const actorId = cleanRequired(authUser?.id, "Authenticated user ID is required.");
+  const authorName = deriveDisplayName(authUser, cleanOptional(body.authorName, 80));
+  const authorEmail = cleanOptional(authUser?.email, 160);
   const message = cleanRequired(body.message, "Comment is required.", 2000);
   const commentsState = await loadCommentStateFromBlob();
   const key = buildEntityKey(entityType, entityId);
@@ -382,18 +390,22 @@ async function handleCreateCommentInBlob(body) {
   return loadStateFromBlob();
 }
 
-async function handleDeleteCommentInBlob(body) {
+async function handleDeleteCommentInBlob(body, authUser) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
   const commentId = cleanRequired(body.commentId, "Comment ID is required.");
   const commentsState = await loadCommentStateFromBlob();
   const key = buildEntityKey(entityType, entityId);
   const entity = ensureEntityRecord(commentsState.entities, key);
-  const nextEntries = entity.entries.filter((entry) => entry.id !== commentId);
-
-  if (nextEntries.length === entity.entries.length) {
+  const comment = entity.entries.find((entry) => entry.id === commentId);
+  if (!comment) {
     throw createHttpError(404, "Comment not found.");
   }
+  if (String(comment.actorId || "") !== String(authUser?.id || "")) {
+    throw createHttpError(403, "Only the author of this comment can delete it.");
+  }
+
+  const nextEntries = entity.entries.filter((entry) => entry.id !== commentId);
 
   entity.entries = nextEntries;
   commentsState.entities[key] = entity;
@@ -416,13 +428,13 @@ async function handleIncrementViewInBlob(body) {
   return loadStateFromBlob();
 }
 
-async function handleToggleLikeInDatabase(body) {
+async function handleToggleLikeInDatabase(body, authUser) {
   await ensureDatabaseReady();
 
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
-  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
-  const actorName = cleanRequired(body.actorName, "Actor name is required.");
+  const actorId = cleanRequired(authUser?.id, "Authenticated user ID is required.");
+  const actorName = deriveDisplayName(authUser, cleanOptional(body.actorName, 80));
   const entityKey = buildEntityKey(entityType, entityId);
   const client = await getPool().connect();
 
@@ -461,14 +473,14 @@ async function handleToggleLikeInDatabase(body) {
   return loadStateFromDatabase();
 }
 
-async function handleCreateCommentInDatabase(body) {
+async function handleCreateCommentInDatabase(body, authUser) {
   await ensureDatabaseReady();
 
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
-  const actorId = cleanRequired(body.actorId, "Actor ID is required.");
-  const authorName = cleanRequired(body.authorName, "Author name is required.");
-  const authorEmail = cleanOptional(body.authorEmail, 160);
+  const actorId = cleanRequired(authUser?.id, "Authenticated user ID is required.");
+  const authorName = deriveDisplayName(authUser, cleanOptional(body.authorName, 80));
+  const authorEmail = cleanOptional(authUser?.email, 160);
   const message = cleanRequired(body.message, "Comment is required.", 2000);
   const entityKey = buildEntityKey(entityType, entityId);
   const commentId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -504,7 +516,7 @@ async function handleCreateCommentInDatabase(body) {
   return loadStateFromDatabase();
 }
 
-async function handleDeleteCommentInDatabase(body) {
+async function handleDeleteCommentInDatabase(body, authUser) {
   await ensureDatabaseReady();
 
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
@@ -515,13 +527,14 @@ async function handleDeleteCommentInDatabase(body) {
 
   try {
     await client.query("BEGIN");
-    const result = await client.query("DELETE FROM engagement_comments WHERE id = $1 AND entity_key = $2", [
+    const result = await client.query("DELETE FROM engagement_comments WHERE id = $1 AND entity_key = $2 AND actor_id = $3", [
       commentId,
       entityKey,
+      cleanRequired(authUser?.id, "Authenticated user ID is required."),
     ]);
 
     if (result.rowCount === 0) {
-      throw createHttpError(404, "Comment not found.");
+      throw createHttpError(403, "Only the author of this comment can delete it.");
     }
 
     await client.query("UPDATE engagement_entities SET updated_at = NOW() WHERE entity_key = $1", [entityKey]);

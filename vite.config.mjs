@@ -4,14 +4,18 @@ import react from "@vitejs/plugin-react";
 
 const require = createRequire(import.meta.url);
 const engagementHandler = require("./api/engagement.js");
+const accountHandler = require("./api/account.js");
 
 function engagementApiPlugin() {
-  const route = "/api/engagement";
+  const routes = new Map([
+    ["/api/engagement", engagementHandler],
+    ["/api/account", accountHandler],
+  ]);
 
-  async function runHandler(req, res) {
+  async function runHandler(req, res, handler) {
     try {
       req.body = await readRequestBody(req);
-      await engagementHandler(req, res);
+      await handler(req, res);
     } catch (error) {
       res.statusCode = 500;
       res.setHeader("Content-Type", "application/json");
@@ -27,12 +31,13 @@ function engagementApiPlugin() {
       }
 
       const pathname = req.url.split("?")[0];
-      if (pathname !== route) {
+      const handler = routes.get(pathname);
+      if (!handler) {
         next();
         return;
       }
 
-      await runHandler(req, res);
+      await runHandler(req, res, handler);
     });
   }
 
