@@ -40,6 +40,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "POST") {
       const body = normalizeBody(req.body);
+      const action = normalizeAction(body);
 
       if (storage === "degraded") {
         return sendJson(res, 503, {
@@ -50,12 +51,12 @@ module.exports = async function handler(req, res) {
         });
       }
 
-      if (body.action === "toggle-like") {
+      if (action === "toggle-like") {
         const state = await handleToggleLikeByMode(storage, body);
         logInfo("request.success", {
           requestId,
           method: req.method,
-          action: body.action,
+          action,
           storage,
           entityType: body.entityType,
           entityId: body.entityId,
@@ -63,12 +64,12 @@ module.exports = async function handler(req, res) {
         return sendStateResponse(res, 200, storage, state, requestId);
       }
 
-      if (body.action === "comment") {
+      if (action === "comment") {
         const state = await handleCreateCommentByMode(storage, body);
         logInfo("request.success", {
           requestId,
           method: req.method,
-          action: body.action,
+          action,
           storage,
           entityType: body.entityType,
           entityId: body.entityId,
@@ -76,6 +77,25 @@ module.exports = async function handler(req, res) {
         return sendStateResponse(res, 200, storage, state, requestId);
       }
 
+      if (action === "delete-comment") {
+        const state = await handleDeleteCommentByMode(storage, body);
+        logInfo("request.success", {
+          requestId,
+          method: req.method,
+          action,
+          storage,
+          entityType: body.entityType,
+          entityId: body.entityId,
+          commentId: body.commentId,
+        });
+        return sendStateResponse(res, 200, storage, state, requestId);
+      }
+
+      logInfo("request.unsupported_action", {
+        requestId,
+        receivedAction: body.action,
+        normalizedAction: action,
+      });
       throw createHttpError(400, "Unsupported engagement action.");
     }
 
@@ -138,6 +158,16 @@ async function handleCreateCommentByMode(storage, body) {
   return handleCreateCommentInFiles(body);
 }
 
+async function handleDeleteCommentByMode(storage, body) {
+  if (storage === "database") {
+    return handleDeleteCommentInDatabase(body);
+  }
+  if (storage === "blob") {
+    return handleDeleteCommentInBlob(body);
+  }
+  return handleDeleteCommentInFiles(body);
+}
+
 async function handleToggleLikeInFiles(body) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
@@ -192,6 +222,27 @@ async function handleCreateCommentInFiles(body) {
   return loadStateFromFiles();
 }
 
+async function handleDeleteCommentInFiles(body) {
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const commentId = cleanRequired(body.commentId, "Comment ID is required.");
+  const commentsState = await loadCommentStateFromFile();
+  const key = buildEntityKey(entityType, entityId);
+  const entity = ensureEntityRecord(commentsState.entities, key);
+  const nextEntries = entity.entries.filter((entry) => entry.id !== commentId);
+
+  if (nextEntries.length === entity.entries.length) {
+    throw createHttpError(404, "Comment not found.");
+  }
+
+  entity.entries = nextEntries;
+  commentsState.entities[key] = entity;
+  commentsState.updatedAt = new Date().toISOString();
+  await saveDatasetToFile(COMMENTS_PATH, commentsState);
+
+  return loadStateFromFiles();
+}
+
 async function handleToggleLikeInBlob(body) {
   const entityType = cleanRequired(body.entityType, "Entity type is required.");
   const entityId = cleanRequired(body.entityId, "Entity ID is required.");
@@ -239,6 +290,27 @@ async function handleCreateCommentInBlob(body) {
     createdAt: new Date().toISOString(),
   });
 
+  commentsState.entities[key] = entity;
+  commentsState.updatedAt = new Date().toISOString();
+  await saveDatasetToBlob(COMMENTS_BLOB_PATH, commentsState);
+
+  return loadStateFromBlob();
+}
+
+async function handleDeleteCommentInBlob(body) {
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const commentId = cleanRequired(body.commentId, "Comment ID is required.");
+  const commentsState = await loadCommentStateFromBlob();
+  const key = buildEntityKey(entityType, entityId);
+  const entity = ensureEntityRecord(commentsState.entities, key);
+  const nextEntries = entity.entries.filter((entry) => entry.id !== commentId);
+
+  if (nextEntries.length === entity.entries.length) {
+    throw createHttpError(404, "Comment not found.");
+  }
+
+  entity.entries = nextEntries;
   commentsState.entities[key] = entity;
   commentsState.updatedAt = new Date().toISOString();
   await saveDatasetToBlob(COMMENTS_BLOB_PATH, commentsState);
@@ -322,6 +394,38 @@ async function handleCreateCommentInDatabase(body) {
       `,
       [commentId, entityKey, actorId, authorName, authorEmail, message]
     );
+    await client.query("UPDATE engagement_entities SET updated_at = NOW() WHERE entity_key = $1", [entityKey]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return loadStateFromDatabase();
+}
+
+async function handleDeleteCommentInDatabase(body) {
+  await ensureDatabaseReady();
+
+  const entityType = cleanRequired(body.entityType, "Entity type is required.");
+  const entityId = cleanRequired(body.entityId, "Entity ID is required.");
+  const commentId = cleanRequired(body.commentId, "Comment ID is required.");
+  const entityKey = buildEntityKey(entityType, entityId);
+  const client = await getPool().connect();
+
+  try {
+    await client.query("BEGIN");
+    const result = await client.query("DELETE FROM engagement_comments WHERE id = $1 AND entity_key = $2", [
+      commentId,
+      entityKey,
+    ]);
+
+    if (result.rowCount === 0) {
+      throw createHttpError(404, "Comment not found.");
+    }
+
     await client.query("UPDATE engagement_entities SET updated_at = NOW() WHERE entity_key = $1", [entityKey]);
     await client.query("COMMIT");
   } catch (error) {
@@ -968,6 +1072,70 @@ function normalizeBody(body) {
     throw createHttpError(400, "Request body must be a JSON object.");
   }
   return body;
+}
+
+function normalizeAction(body) {
+  const rawAction = body && typeof body === "object" ? body.action : body;
+  const action = String(rawAction || "")
+    .trim()
+    .toLowerCase();
+
+  if (action === "toggle-like" || action === "toggle_like" || action === "like-toggle" || action === "like") {
+    return "toggle-like";
+  }
+
+  if (action === "comment" || action === "create-comment" || action === "add-comment") {
+    return "comment";
+  }
+
+  if (
+    action === "delete-comment" ||
+    action === "delete_comment" ||
+    action === "remove-comment" ||
+    action === "remove_comment" ||
+    action === "deletecomment" ||
+    action === "removecomment"
+  ) {
+    return "delete-comment";
+  }
+
+  if (!action) {
+    if (looksLikeDeleteCommentPayload(body)) {
+      return "delete-comment";
+    }
+    if (looksLikeCreateCommentPayload(body)) {
+      return "comment";
+    }
+    if (looksLikeToggleLikePayload(body)) {
+      return "toggle-like";
+    }
+  }
+
+  if (looksLikeDeleteCommentPayload(body) && action.includes("comment")) {
+    return "delete-comment";
+  }
+
+  if (looksLikeCreateCommentPayload(body) && (action.includes("comment") || action.includes("post"))) {
+    return "comment";
+  }
+
+  if (looksLikeToggleLikePayload(body) && action.includes("like")) {
+    return "toggle-like";
+  }
+
+  return action;
+}
+
+function looksLikeDeleteCommentPayload(body) {
+  return Boolean(body && body.entityType && body.entityId && body.commentId);
+}
+
+function looksLikeCreateCommentPayload(body) {
+  return Boolean(body && body.entityType && body.entityId && body.actorId && body.authorName && body.message);
+}
+
+function looksLikeToggleLikePayload(body) {
+  return Boolean(body && body.entityType && body.entityId && body.actorId && body.actorName && !body.message);
 }
 
 function cleanRequired(value, message, maxLength = 160) {

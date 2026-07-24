@@ -10,6 +10,7 @@ import {
 import { marked } from "marked";
 import {
   createComment,
+  deleteComment,
   entityKey,
   fetchEngagementStats,
   formatCount,
@@ -338,6 +339,32 @@ function useEngagement() {
     }
   }
 
+  async function handleDeleteComment({ entityType, entityId, commentId }) {
+    try {
+      const response = await deleteComment({
+        entityType,
+        entityId,
+        commentId,
+      });
+      setStatsMap(response.stats);
+      setStorage(response.storage);
+      setLastUpdatedAt(response.updatedAt);
+      setError("");
+      return response.stats[entityKey(entityType, entityId)] || null;
+    } catch (deleteError) {
+      const message = buildEngagementErrorMessage(deleteError);
+      console.error("[engagement-ui] delete comment failed", {
+        entityType,
+        entityId,
+        commentId,
+        message,
+        requestId: deleteError?.requestId || "",
+      });
+      setError(message);
+      throw deleteError;
+    }
+  }
+
   return {
     statsMap,
     profile,
@@ -348,6 +375,7 @@ function useEngagement() {
     refresh,
     toggleLike: handleToggleLike,
     createComment: handleCreateComment,
+    deleteComment: handleDeleteComment,
   };
 }
 
@@ -452,6 +480,7 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [actionError, setActionError] = useState("");
+  const [busyCommentId, setBusyCommentId] = useState("");
 
   useEffect(() => {
     setAuthorName(engagement.profile.name || "");
@@ -479,6 +508,23 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
       setActionError(error.message);
     } finally {
       setBusyAction("");
+    }
+  }
+
+  async function handleDeleteCommentClick(commentId) {
+    setBusyCommentId(commentId);
+    setActionError("");
+
+    try {
+      await engagement.deleteComment({
+        entityType,
+        entityId,
+        commentId,
+      });
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setBusyCommentId("");
     }
   }
 
@@ -576,8 +622,18 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
           stats.comments.map((comment) => (
             <article key={comment.id} className="engagement-comment-card">
               <div className="engagement-comment-meta">
-                <strong>{comment.authorName}</strong>
-                <span>{formatCommentDate(comment.createdAt)}</span>
+                <div className="engagement-comment-meta-main">
+                  <strong>{comment.authorName}</strong>
+                  <span>{formatCommentDate(comment.createdAt)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="engagement-comment-remove-btn"
+                  onClick={() => handleDeleteCommentClick(comment.id)}
+                  disabled={busyCommentId === comment.id}
+                >
+                  {busyCommentId === comment.id ? "Removing..." : "Remove"}
+                </button>
               </div>
               <p>{comment.message}</p>
             </article>
@@ -677,6 +733,7 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [actionError, setActionError] = useState("");
+  const [busyCommentId, setBusyCommentId] = useState("");
 
   useEffect(() => {
     setAuthorName(engagement.profile.name || "");
@@ -709,6 +766,23 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
       setActionError(error.message);
     } finally {
       setBusyAction("");
+    }
+  }
+
+  async function handleDeleteCommentClick(commentId) {
+    setBusyCommentId(commentId);
+    setActionError("");
+
+    try {
+      await engagement.deleteComment({
+        entityType,
+        entityId,
+        commentId,
+      });
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setBusyCommentId("");
     }
   }
 
@@ -760,8 +834,18 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
             stats.comments.map((comment) => (
               <article key={comment.id} className="engagement-comment-card">
                 <div className="engagement-comment-meta">
-                  <strong>{comment.authorName}</strong>
-                  <span>{formatCommentDate(comment.createdAt)}</span>
+                  <div className="engagement-comment-meta-main">
+                    <strong>{comment.authorName}</strong>
+                    <span>{formatCommentDate(comment.createdAt)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="engagement-comment-remove-btn"
+                    onClick={() => handleDeleteCommentClick(comment.id)}
+                    disabled={busyCommentId === comment.id}
+                  >
+                    {busyCommentId === comment.id ? "Removing..." : "Remove"}
+                  </button>
                 </div>
                 <p>{comment.message}</p>
               </article>

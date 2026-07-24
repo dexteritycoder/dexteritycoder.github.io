@@ -59,6 +59,13 @@ export async function createComment(payload) {
   });
 }
 
+export async function deleteComment(payload) {
+  return postEngagementAction({
+    action: "delete-comment",
+    ...payload,
+  });
+}
+
 async function postEngagementAction(payload) {
   try {
     const response = await fetch("/api/engagement", {
