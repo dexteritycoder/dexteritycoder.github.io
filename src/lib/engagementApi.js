@@ -6,6 +6,12 @@ const EMPTY_STATS = {
 };
 
 const FALLBACK_STORAGE_KEY = "dexteritycoder-engagement-fallback-v1";
+const EMPTY_RESPONSE = {
+  stats: {},
+  storage: "file",
+  persistent: true,
+  updatedAt: "",
+};
 
 export function entityKey(entityType, entityId) {
   return `${entityType}:${entityId}`;
@@ -26,12 +32,12 @@ export async function fetchEngagementStats() {
       throw new Error(payload?.error || "Failed to load engagement data.");
     }
 
-    const stats = payload?.stats || {};
-    persistFallbackStats(stats);
-    return stats;
+    const normalized = normalizeEngagementResponse(payload);
+    persistFallbackResponse(normalized);
+    return normalized;
   } catch (error) {
     if (error instanceof TypeError) {
-      return loadFallbackStats();
+      return loadFallbackResponse();
     }
     throw error;
   }
@@ -66,9 +72,9 @@ async function postEngagementAction(payload) {
     throw new Error(result?.error || "Failed to save engagement data.");
   }
 
-  const stats = result?.stats || {};
-  persistFallbackStats(stats);
-  return stats;
+  const normalized = normalizeEngagementResponse(result);
+  persistFallbackResponse(normalized);
+  return normalized;
 }
 
 export function formatCount(value) {
@@ -123,27 +129,36 @@ async function readJsonResponse(response) {
   }
 }
 
-function loadFallbackStats() {
+function loadFallbackResponse() {
   if (typeof window === "undefined") {
-    return {};
+    return EMPTY_RESPONSE;
   }
 
   try {
     const raw = window.localStorage.getItem(FALLBACK_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return raw ? normalizeEngagementResponse(JSON.parse(raw)) : EMPTY_RESPONSE;
   } catch {
-    return {};
+    return EMPTY_RESPONSE;
   }
 }
 
-function persistFallbackStats(stats) {
+function persistFallbackResponse(payload) {
   if (typeof window === "undefined") {
     return;
   }
 
   try {
-    window.localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(stats));
+    window.localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(normalizeEngagementResponse(payload)));
   } catch {
     // Ignore local storage write failures.
   }
+}
+
+function normalizeEngagementResponse(payload) {
+  return {
+    stats: payload?.stats || {},
+    storage: payload?.storage || "file",
+    persistent: payload?.persistent !== false,
+    updatedAt: payload?.updatedAt || "",
+  };
 }

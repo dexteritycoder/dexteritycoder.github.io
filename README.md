@@ -14,4 +14,8 @@ Comments and likes are served by `api/engagement.js`.
 
 In local development, the handler reads and writes `data/engagement/comments.json` and `data/engagement/likes.json` directly, so engagement works without any database setup.
 
-On Vercel, the same handler switches to Postgres using `POSTGRES_URL`, creates its tables automatically, and seeds the initial data from the legacy JSON files the first time it connects.
+On Vercel, the same handler switches to Postgres when one of these environment variables is present: `POSTGRES_URL`, `DATABASE_URL`, `SUPABASE_DB_URL`, `SUPABASE_DATABASE_URL`, or `SUPABASE_POSTGRES_URL`.
+
+Supabase is the recommended deployment target here because the API already uses PostgreSQL directly. Once the connection string is added in Vercel, the handler creates its tables automatically, seeds the initial data from the legacy JSON files on first connect, and serves shared likes/comments to every visitor.
+
+The frontend now re-syncs engagement data in the background, on tab focus, and when the page becomes visible again, so likes and comments added on one device appear on other devices without requiring a hard refresh.

@@ -9,4 +9,5 @@
 
 22-07-2026
 - Failed to save engagement data.
-- likes counting now showing
+- likes counting now synching between devices
+- Add MongoDB as database or try neon or supabase

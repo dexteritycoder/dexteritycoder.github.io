@@ -167,6 +167,9 @@ function useEngagement() {
   const [statsMap, setStatsMap] = useState({});
   const [profile, setProfile] = useState(() => loadStoredProfile());
   const [error, setError] = useState("");
+  const [storage, setStorage] = useState("file");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState("");
+  const requestRef = useRef(0);
 
   useEffect(() => {
     persistProfile(profile);
@@ -174,22 +177,61 @@ function useEngagement() {
 
   useEffect(() => {
     let active = true;
+    const syncIntervalMs = 4000;
 
-    fetchEngagementStats()
-      .then((stats) => {
-        if (active) {
-          setStatsMap(stats);
-          setError("");
+    async function sync({ silent = false } = {}) {
+      const requestId = requestRef.current + 1;
+      requestRef.current = requestId;
+
+      try {
+        const response = await fetchEngagementStats();
+        if (!active || requestRef.current !== requestId) {
+          return response;
         }
-      })
-      .catch((loadError) => {
-        if (active) {
+
+        setStatsMap(response.stats);
+        setStorage(response.storage);
+        setLastUpdatedAt(response.updatedAt);
+        setError("");
+        return response;
+      } catch (loadError) {
+        if (!active || requestRef.current !== requestId) {
+          return null;
+        }
+
+        if (!silent) {
           setError(loadError.message);
         }
-      });
+        return null;
+      }
+    }
+
+    sync();
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        sync({ silent: true });
+      }
+    }, syncIntervalMs);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        sync({ silent: true });
+      }
+    };
+
+    const handleFocus = () => {
+      sync({ silent: true });
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -202,10 +244,12 @@ function useEngagement() {
   }
 
   async function refresh() {
-    const stats = await fetchEngagementStats();
-    setStatsMap(stats);
+    const response = await fetchEngagementStats();
+    setStatsMap(response.stats);
+    setStorage(response.storage);
+    setLastUpdatedAt(response.updatedAt);
     setError("");
-    return stats;
+    return response.stats;
   }
 
   async function handleToggleLike({ entityType, entityId, actorName }) {
@@ -225,14 +269,16 @@ function useEngagement() {
     setStatsMap(optimisticStatsMap);
 
     try {
-      const stats = await toggleLike({
+      const response = await toggleLike({
         entityType,
         entityId,
         actorId: nextProfile.actorId,
         actorName: nextProfile.name,
       });
-      setStatsMap(stats);
-      return stats[entityKey(entityType, entityId)] || null;
+      setStatsMap(response.stats);
+      setStorage(response.storage);
+      setLastUpdatedAt(response.updatedAt);
+      return response.stats[entityKey(entityType, entityId)] || null;
     } catch (toggleError) {
       setStatsMap(previousStatsMap);
       setError(toggleError.message);
@@ -248,7 +294,7 @@ function useEngagement() {
     };
     setProfile(nextProfile);
 
-    const stats = await createComment({
+    const response = await createComment({
       entityType,
       entityId,
       actorId: nextProfile.actorId,
@@ -256,20 +302,34 @@ function useEngagement() {
       authorEmail: nextProfile.email,
       message,
     });
-    setStatsMap(stats);
+    setStatsMap(response.stats);
+    setStorage(response.storage);
+    setLastUpdatedAt(response.updatedAt);
     setError("");
-    return stats[entityKey(entityType, entityId)] || null;
+    return response.stats[entityKey(entityType, entityId)] || null;
   }
 
   return {
     statsMap,
     profile,
     error,
+    storage,
+    lastUpdatedAt,
     saveProfile,
     refresh,
     toggleLike: handleToggleLike,
     createComment: handleCreateComment,
   };
+}
+
+function describeEngagementStorage(storage) {
+  if (storage === "database") {
+    return "Likes and comments are synced through Supabase or another Postgres database.";
+  }
+  if (storage === "blob") {
+    return "Likes and comments are shared through Vercel Blob storage.";
+  }
+  return "Likes and comments are stored locally in the development JSON dataset.";
 }
 
 function loadStoredProfile() {
@@ -419,7 +479,7 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
       <div className="engagement-header">
         <div>
           <h2>{title}</h2>
-          <p>Comments and likes are loaded from persistent JSON data.</p>
+          <p>{describeEngagementStorage(engagement.storage)}</p>
         </div>
         <button
           type="button"

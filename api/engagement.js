@@ -21,11 +21,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "GET") {
       const state = await loadStateByMode(storage);
-      return sendJson(res, 200, {
-        stats: buildStatsMap(state),
-        storage,
-        persistent: storage === "database" || storage === "blob" || storage === "file",
-      });
+      return sendStateResponse(res, 200, storage, state);
     }
 
     if (req.method === "POST") {
@@ -40,13 +36,13 @@ module.exports = async function handler(req, res) {
       }
 
       if (body.action === "toggle-like") {
-        const stats = await handleToggleLikeByMode(storage, body);
-        return sendJson(res, 200, { stats, storage });
+        const state = await handleToggleLikeByMode(storage, body);
+        return sendStateResponse(res, 200, storage, state);
       }
 
       if (body.action === "comment") {
-        const stats = await handleCreateCommentByMode(storage, body);
-        return sendJson(res, 200, { stats, storage });
+        const state = await handleCreateCommentByMode(storage, body);
+        return sendStateResponse(res, 200, storage, state);
       }
 
       return sendJson(res, 400, { error: "Unsupported engagement action." });
@@ -126,7 +122,7 @@ async function handleToggleLikeInFiles(body) {
   likeState.updatedAt = new Date().toISOString();
   await saveDatasetToFile(LIKES_PATH, likeState);
 
-  return buildStatsMap(await loadStateFromFiles());
+  return loadStateFromFiles();
 }
 
 async function handleCreateCommentInFiles(body) {
@@ -153,7 +149,7 @@ async function handleCreateCommentInFiles(body) {
   commentsState.updatedAt = new Date().toISOString();
   await saveDatasetToFile(COMMENTS_PATH, commentsState);
 
-  return buildStatsMap(await loadStateFromFiles());
+  return loadStateFromFiles();
 }
 
 async function handleToggleLikeInBlob(body) {
@@ -180,7 +176,7 @@ async function handleToggleLikeInBlob(body) {
   likeState.updatedAt = new Date().toISOString();
   await saveDatasetToBlob(LIKES_BLOB_PATH, likeState);
 
-  return buildStatsMap(await loadStateFromBlob());
+  return loadStateFromBlob();
 }
 
 async function handleCreateCommentInBlob(body) {
@@ -207,7 +203,7 @@ async function handleCreateCommentInBlob(body) {
   commentsState.updatedAt = new Date().toISOString();
   await saveDatasetToBlob(COMMENTS_BLOB_PATH, commentsState);
 
-  return buildStatsMap(await loadStateFromBlob());
+  return loadStateFromBlob();
 }
 
 async function handleToggleLikeInDatabase(body) {
@@ -252,7 +248,7 @@ async function handleToggleLikeInDatabase(body) {
     client.release();
   }
 
-  return buildStatsMap(await loadStateFromDatabase());
+  return loadStateFromDatabase();
 }
 
 async function handleCreateCommentInDatabase(body) {
@@ -295,7 +291,7 @@ async function handleCreateCommentInDatabase(body) {
     client.release();
   }
 
-  return buildStatsMap(await loadStateFromDatabase());
+  return loadStateFromDatabase();
 }
 
 async function loadStateFromFiles() {
@@ -682,6 +678,9 @@ function resolveDatabaseConnectionString() {
   const directNames = [
     "POSTGRES_URL",
     "DATABASE_URL",
+    "SUPABASE_DB_URL",
+    "SUPABASE_DATABASE_URL",
+    "SUPABASE_POSTGRES_URL",
     "POSTGRES_PRISMA_URL",
     "POSTGRES_URL_NON_POOLING",
   ];
@@ -700,7 +699,7 @@ function resolveDatabaseConnectionString() {
     }
 
     return (
-      /(?:^|_)(?:DATABASE_URL|POSTGRES_URL|POSTGRES_PRISMA_URL|POSTGRES_URL_NON_POOLING)$/i.test(name) ||
+      /(?:^|_)(?:DATABASE_URL|POSTGRES_URL|POSTGRES_PRISMA_URL|POSTGRES_URL_NON_POOLING|SUPABASE_DB_URL|SUPABASE_DATABASE_URL|SUPABASE_POSTGRES_URL)$/i.test(name) ||
       /^postgres(?:ql)?:\/\//i.test(String(value).trim())
     );
   });
@@ -785,6 +784,21 @@ function buildStatsMap({ commentsState, likesState }) {
   return stats;
 }
 
+function getStateUpdatedAt({ commentsState, likesState }) {
+  const timestamps = [commentsState?.updatedAt, likesState?.updatedAt]
+    .map((value) => {
+      const time = value ? new Date(value).getTime() : 0;
+      return Number.isFinite(time) ? time : 0;
+    })
+    .filter(Boolean);
+
+  if (timestamps.length === 0) {
+    return new Date().toISOString();
+  }
+
+  return new Date(Math.max(...timestamps)).toISOString();
+}
+
 function ensureDatasetShape(data) {
   const entities = {};
   for (const [key, value] of Object.entries(data?.entities || {})) {
@@ -851,4 +865,13 @@ function normalizeTimestamp(value) {
 function sendJson(res, status, payload) {
   res.statusCode = status;
   res.end(JSON.stringify(payload));
+}
+
+function sendStateResponse(res, status, storage, state) {
+  return sendJson(res, status, {
+    stats: buildStatsMap(state),
+    storage,
+    persistent: storage === "database" || storage === "blob" || storage === "file",
+    updatedAt: getStateUpdatedAt(state),
+  });
 }
