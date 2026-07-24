@@ -11,6 +11,7 @@ const EMPTY_RESPONSE = {
   storage: "file",
   persistent: true,
   updatedAt: "",
+  requestId: "",
 };
 
 export function entityKey(entityType, entityId) {
@@ -36,6 +37,7 @@ export async function fetchEngagementStats() {
     persistFallbackResponse(normalized);
     return normalized;
   } catch (error) {
+    logClientError("fetchEngagementStats", error);
     if (error instanceof TypeError) {
       return loadFallbackResponse();
     }
@@ -58,23 +60,35 @@ export async function createComment(payload) {
 }
 
 async function postEngagementAction(payload) {
-  const response = await fetch("/api/engagement", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch("/api/engagement", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  const result = await readJsonResponse(response);
-  if (!response.ok) {
-    throw new Error(result?.error || "Failed to save engagement data.");
+    const result = await readJsonResponse(response);
+    if (!response.ok) {
+      throw createClientError(result?.error || "Failed to save engagement data.", {
+        requestId: result?.requestId || response.headers.get("x-engagement-request-id") || "",
+        status: response.status,
+      });
+    }
+
+    const normalized = normalizeEngagementResponse(result);
+    persistFallbackResponse(normalized);
+    return normalized;
+  } catch (error) {
+    logClientError("postEngagementAction", error, {
+      action: payload?.action || "",
+      entityType: payload?.entityType || "",
+      entityId: payload?.entityId || "",
+    });
+    throw error;
   }
-
-  const normalized = normalizeEngagementResponse(result);
-  persistFallbackResponse(normalized);
-  return normalized;
 }
 
 export function formatCount(value) {
@@ -160,5 +174,22 @@ function normalizeEngagementResponse(payload) {
     storage: payload?.storage || "file",
     persistent: payload?.persistent !== false,
     updatedAt: payload?.updatedAt || "",
+    requestId: payload?.requestId || "",
   };
+}
+
+function createClientError(message, details = {}) {
+  const error = new Error(message);
+  error.requestId = details.requestId || "";
+  error.status = details.status || 0;
+  return error;
+}
+
+function logClientError(event, error, details = {}) {
+  console.error("[engagement-client]", event, {
+    ...details,
+    message: error?.message || "Unknown error",
+    requestId: error?.requestId || "",
+    status: error?.status || 0,
+  });
 }

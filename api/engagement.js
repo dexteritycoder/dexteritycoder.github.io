@@ -13,15 +13,29 @@ let schemaReadyPromise;
 let blobAccessMode;
 
 module.exports = async function handler(req, res) {
+  const requestId = createRequestId();
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Engagement-Request-Id", requestId);
 
   try {
     const storage = getStorageMode();
+    logInfo("request.start", {
+      requestId,
+      method: req.method,
+      url: req.url || "",
+      storage,
+    });
 
     if (req.method === "GET") {
       const state = await loadStateByMode(storage);
-      return sendStateResponse(res, 200, storage, state);
+      logInfo("request.success", {
+        requestId,
+        method: req.method,
+        storage,
+        entityCount: countStateEntities(state),
+      });
+      return sendStateResponse(res, 200, storage, state, requestId);
     }
 
     if (req.method === "POST") {
@@ -32,26 +46,52 @@ module.exports = async function handler(req, res) {
           error:
             "Persistent storage is not configured for this deployment. Connect Vercel Postgres or Vercel Blob to make comments and likes shared across visitors.",
           storage,
+          requestId,
         });
       }
 
       if (body.action === "toggle-like") {
         const state = await handleToggleLikeByMode(storage, body);
-        return sendStateResponse(res, 200, storage, state);
+        logInfo("request.success", {
+          requestId,
+          method: req.method,
+          action: body.action,
+          storage,
+          entityType: body.entityType,
+          entityId: body.entityId,
+        });
+        return sendStateResponse(res, 200, storage, state, requestId);
       }
 
       if (body.action === "comment") {
         const state = await handleCreateCommentByMode(storage, body);
-        return sendStateResponse(res, 200, storage, state);
+        logInfo("request.success", {
+          requestId,
+          method: req.method,
+          action: body.action,
+          storage,
+          entityType: body.entityType,
+          entityId: body.entityId,
+        });
+        return sendStateResponse(res, 200, storage, state, requestId);
       }
 
-      return sendJson(res, 400, { error: "Unsupported engagement action." });
+      throw createHttpError(400, "Unsupported engagement action.");
     }
 
     res.setHeader("Allow", "GET, POST");
-    return sendJson(res, 405, { error: "Method not allowed." });
+    return sendJson(res, 405, { error: "Method not allowed.", requestId });
   } catch (error) {
-    return sendJson(res, 500, { error: error.message || "Internal server error." });
+    const status = getErrorStatus(error);
+    logError("request.failure", error, {
+      requestId,
+      method: req.method,
+      url: req.url || "",
+    });
+    return sendJson(res, status, {
+      error: getPublicErrorMessage(error, status),
+      requestId,
+    });
   }
 };
 
@@ -309,8 +349,17 @@ async function loadLikeStateFromFile() {
 
 async function loadDatasetFromFile(filePath) {
   const localPath = path.join(process.cwd(), filePath);
-  const localContent = await fs.readFile(localPath, "utf8");
-  return ensureDatasetShape(JSON.parse(localContent));
+  try {
+    const localContent = await fs.readFile(localPath, "utf8");
+    return ensureDatasetShape(JSON.parse(localContent));
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      logInfo("file.missing", { filePath: localPath });
+      return ensureDatasetShape({});
+    }
+
+    throw createHttpError(500, `Failed to read engagement dataset from ${filePath}.`, error);
+  }
 }
 
 async function saveDatasetToFile(filePath, data) {
@@ -412,13 +461,19 @@ async function resolveBlobAccessMode() {
 
 async function ensureDatabaseReady() {
   if (!schemaReadyPromise) {
-    schemaReadyPromise = initializeDatabase();
+    schemaReadyPromise = initializeDatabase().catch((error) => {
+      schemaReadyPromise = undefined;
+      throw error;
+    });
   }
   return schemaReadyPromise;
 }
 
 async function initializeDatabase() {
   const db = getPool();
+  logInfo("database.initialize.start", {
+    connection: summarizeConnectionString(resolveDatabaseConnectionString()),
+  });
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS engagement_entities (
@@ -458,10 +513,17 @@ async function initializeDatabase() {
 
   const seedCheck = await db.query("SELECT COUNT(*)::int AS count FROM engagement_entities");
   if ((seedCheck.rows[0] && seedCheck.rows[0].count) > 0) {
+    logInfo("database.initialize.ready", {
+      seeded: false,
+      entityCount: seedCheck.rows[0].count,
+    });
     return;
   }
 
   await seedFromLegacyFiles();
+  logInfo("database.initialize.ready", {
+    seeded: true,
+  });
 }
 
 async function seedFromLegacyFiles() {
@@ -476,6 +538,9 @@ async function seedFromLegacyFiles() {
   ]);
 
   if (keys.size === 0) {
+    logInfo("database.seed.skipped", {
+      reason: "no-legacy-data",
+    });
     return;
   }
 
@@ -562,9 +627,12 @@ async function seedFromLegacyFiles() {
     }
 
     await client.query("COMMIT");
+    logInfo("database.seed.completed", {
+      entityCount: keys.size,
+    });
   } catch (error) {
     await client.query("ROLLBACK");
-    throw error;
+    throw createHttpError(500, "Failed seeding engagement data into the database.", error);
   } finally {
     client.release();
   }
@@ -652,14 +720,22 @@ function getPool() {
   if (!pool) {
     const connectionString = resolveDatabaseConnectionString();
     if (!connectionString) {
-      throw new Error(
+      throw createHttpError(
+        500,
         "Database is not configured. Connect a Postgres integration to this Vercel project or add DATABASE_URL/POSTGRES_URL for the deployed environment and redeploy."
       );
     }
 
+    logInfo("database.pool.create", {
+      connection: summarizeConnectionString(connectionString),
+      ssl: shouldUseSsl(connectionString),
+    });
     pool = new Pool({
       connectionString,
       ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : false,
+    });
+    pool.on("error", (error) => {
+      logError("database.pool.error", error);
     });
   }
 
@@ -837,7 +913,14 @@ function normalizeBody(body) {
     return {};
   }
   if (typeof body === "string") {
-    return JSON.parse(body);
+    try {
+      return JSON.parse(body);
+    } catch (error) {
+      throw createHttpError(400, "Request body must be valid JSON.", error);
+    }
+  }
+  if (typeof body !== "object") {
+    throw createHttpError(400, "Request body must be a JSON object.");
   }
   return body;
 }
@@ -845,7 +928,7 @@ function normalizeBody(body) {
 function cleanRequired(value, message, maxLength = 160) {
   const cleaned = String(value || "").trim();
   if (!cleaned) {
-    throw new Error(message);
+    throw createHttpError(400, message);
   }
   return cleaned.slice(0, maxLength);
 }
@@ -867,11 +950,81 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function sendStateResponse(res, status, storage, state) {
+function sendStateResponse(res, status, storage, state, requestId) {
   return sendJson(res, status, {
     stats: buildStatsMap(state),
     storage,
     persistent: storage === "database" || storage === "blob" || storage === "file",
     updatedAt: getStateUpdatedAt(state),
+    requestId,
   });
+}
+
+function countStateEntities(state) {
+  const keys = new Set([
+    ...Object.keys(state?.commentsState?.entities || {}),
+    ...Object.keys(state?.likesState?.entities || {}),
+  ]);
+  return keys.size;
+}
+
+function createRequestId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createHttpError(status, message, cause) {
+  const error = new Error(message);
+  error.statusCode = status;
+  if (cause) {
+    error.cause = cause;
+  }
+  return error;
+}
+
+function getErrorStatus(error) {
+  const status = Number(error?.statusCode || error?.status || 500);
+  if (status >= 400 && status <= 599) {
+    return status;
+  }
+  return 500;
+}
+
+function getPublicErrorMessage(error, status) {
+  if (status >= 500) {
+    return error?.message || "Internal server error.";
+  }
+  return error?.message || "Request failed.";
+}
+
+function logInfo(event, data = {}) {
+  console.log(`[engagement] ${event}`, JSON.stringify(data));
+}
+
+function logError(event, error, data = {}) {
+  console.error(
+    `[engagement] ${event}`,
+    JSON.stringify({
+      ...data,
+      message: error?.message || "Unknown error",
+      stack: error?.stack || "",
+      cause: error?.cause?.message || "",
+      code: error?.code || "",
+    })
+  );
+}
+
+function summarizeConnectionString(connectionString) {
+  if (!connectionString) {
+    return "missing";
+  }
+
+  try {
+    const url = new URL(connectionString);
+    const host = url.hostname || "unknown-host";
+    const port = url.port || "default";
+    const database = url.pathname ? url.pathname.replace(/^\//, "") : "";
+    return `${url.protocol}//${host}:${port}/${database || "unknown-db"}`;
+  } catch {
+    return "unparseable";
+  }
 }

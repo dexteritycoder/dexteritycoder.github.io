@@ -244,12 +244,22 @@ function useEngagement() {
   }
 
   async function refresh() {
-    const response = await fetchEngagementStats();
-    setStatsMap(response.stats);
-    setStorage(response.storage);
-    setLastUpdatedAt(response.updatedAt);
-    setError("");
-    return response.stats;
+    try {
+      const response = await fetchEngagementStats();
+      setStatsMap(response.stats);
+      setStorage(response.storage);
+      setLastUpdatedAt(response.updatedAt);
+      setError("");
+      return response.stats;
+    } catch (loadError) {
+      const message = buildEngagementErrorMessage(loadError);
+      console.error("[engagement-ui] refresh failed", {
+        message,
+        requestId: loadError?.requestId || "",
+      });
+      setError(message);
+      throw loadError;
+    }
   }
 
   async function handleToggleLike({ entityType, entityId, actorName }) {
@@ -281,7 +291,14 @@ function useEngagement() {
       return response.stats[entityKey(entityType, entityId)] || null;
     } catch (toggleError) {
       setStatsMap(previousStatsMap);
-      setError(toggleError.message);
+      const message = buildEngagementErrorMessage(toggleError);
+      console.error("[engagement-ui] toggle like failed", {
+        entityType,
+        entityId,
+        message,
+        requestId: toggleError?.requestId || "",
+      });
+      setError(message);
       throw toggleError;
     }
   }
@@ -294,19 +311,31 @@ function useEngagement() {
     };
     setProfile(nextProfile);
 
-    const response = await createComment({
-      entityType,
-      entityId,
-      actorId: nextProfile.actorId,
-      authorName: nextProfile.name,
-      authorEmail: nextProfile.email,
-      message,
-    });
-    setStatsMap(response.stats);
-    setStorage(response.storage);
-    setLastUpdatedAt(response.updatedAt);
-    setError("");
-    return response.stats[entityKey(entityType, entityId)] || null;
+    try {
+      const response = await createComment({
+        entityType,
+        entityId,
+        actorId: nextProfile.actorId,
+        authorName: nextProfile.name,
+        authorEmail: nextProfile.email,
+        message,
+      });
+      setStatsMap(response.stats);
+      setStorage(response.storage);
+      setLastUpdatedAt(response.updatedAt);
+      setError("");
+      return response.stats[entityKey(entityType, entityId)] || null;
+    } catch (commentError) {
+      const message = buildEngagementErrorMessage(commentError);
+      console.error("[engagement-ui] comment failed", {
+        entityType,
+        entityId,
+        message,
+        requestId: commentError?.requestId || "",
+      });
+      setError(message);
+      throw commentError;
+    }
   }
 
   return {
@@ -330,6 +359,15 @@ function describeEngagementStorage(storage) {
     return "Likes and comments are shared through Vercel Blob storage.";
   }
   return "Likes and comments are stored locally in the development JSON dataset.";
+}
+
+function buildEngagementErrorMessage(error) {
+  const baseMessage = error?.message || "Something went wrong while syncing engagement.";
+  const requestId = String(error?.requestId || "").trim();
+  if (!requestId) {
+    return baseMessage;
+  }
+  return `${baseMessage} Reference: ${requestId}`;
 }
 
 function loadStoredProfile() {
@@ -579,8 +617,13 @@ function LikeButton({ entityType, entityId, engagement, className = "", showCoun
         entityId,
         actorName: engagement.profile.name || "Guest",
       });
-    } catch {
-      // Shared engagement state already tracks request errors.
+    } catch (error) {
+      console.error("[engagement-ui] like button failed", {
+        entityType,
+        entityId,
+        message: error?.message || "",
+        requestId: error?.requestId || "",
+      });
     } finally {
       setBusy(false);
     }
