@@ -1549,6 +1549,7 @@ function Navbar({ siteData, auth }) {
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
   const fileInputRef = useRef(null);
+  const navigateWithTransition = useTransitionNavigate();
 
   useEffect(() => {
     function handleEscape(event) {
@@ -1643,6 +1644,18 @@ function Navbar({ siteData, auth }) {
     }
   }
 
+  function handleProfileTriggerClick() {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches) {
+      setMenuOpen(false);
+      setProfileMenuOpen(false);
+      navigateWithTransition("/account");
+      return;
+    }
+
+    setProfileMenuOpen((value) => !value);
+    setProfileError("");
+  }
+
   return (
     <>
       <button
@@ -1685,10 +1698,7 @@ function Navbar({ siteData, auth }) {
                   className="nav-profile-trigger"
                   aria-label="Open profile menu"
                   aria-expanded={profileMenuOpen}
-                  onClick={() => {
-                    setProfileMenuOpen((value) => !value);
-                    setProfileError("");
-                  }}
+                  onClick={handleProfileTriggerClick}
                 >
                   {profilePreviewUrl || getAvatarUrl(auth.profile) ? (
                     <img
