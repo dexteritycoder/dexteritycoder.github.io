@@ -13,7 +13,20 @@ export async function saveAccountProfile(payload) {
   });
 }
 
-async function requestAccount(url, options) {
+export async function fetchAdminProfiles() {
+  return requestAccount("/api/admin-users", {
+    method: "GET",
+  }, "profiles");
+}
+
+export async function updateAdminProfileRole(payload) {
+  return requestAccount("/api/admin-users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, "");
+}
+
+async function requestAccount(url, options, dataKey = "profile") {
   const supabase = getSupabaseClient();
   const {
     data: { session },
@@ -38,7 +51,11 @@ async function requestAccount(url, options) {
     throw createAccountError(payload?.error || "Could not load your account.", payload?.requestId || "");
   }
 
-  return payload?.profile || null;
+  if (!dataKey) {
+    return payload || null;
+  }
+
+  return payload?.[dataKey] ?? null;
 }
 
 async function readJsonResponse(response) {

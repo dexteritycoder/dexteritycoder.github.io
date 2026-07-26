@@ -724,6 +724,50 @@ body.menu-open .line:nth-child(3) {
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.auth-admin-panel {
+    width: min(100%, 860px);
+}
+
+.auth-admin-list {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.auth-admin-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 160px;
+    gap: 16px;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.auth-admin-item p {
+    margin: 6px 0 0;
+}
+
+.auth-admin-role-field {
+    display: grid;
+    gap: 8px;
+}
+
+.auth-admin-role-field span {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.auth-admin-role-field select {
+    width: 100%;
+    padding: 0.8rem 0.9rem;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(9, 9, 9, 0.92);
+    color: #f7f7f7;
+}
+
 .auth-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -758,6 +802,10 @@ body.menu-open .line:nth-child(3) {
     .auth-role-picker,
     .auth-provider-grid,
     .auth-account-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-admin-item {
         grid-template-columns: 1fr;
     }
 

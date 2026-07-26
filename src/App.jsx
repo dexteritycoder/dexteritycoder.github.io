@@ -28,7 +28,12 @@ import {
   repoSlug,
   rewriteReadmeAssets,
 } from "./lib/projectApi";
-import { fetchAccountProfile, saveAccountProfile } from "./lib/accountApi";
+import {
+  fetchAccountProfile,
+  fetchAdminProfiles,
+  saveAccountProfile,
+  updateAdminProfileRole,
+} from "./lib/accountApi";
 import {
   clearPendingRequestedRole,
   getAuthRedirectUrl,
@@ -3096,8 +3101,112 @@ function AuthCallbackPage({ siteData, auth }) {
   );
 }
 
+function AdminAccessPanel({
+  currentAdminId,
+  error,
+  loading,
+  profiles,
+  savingUserId,
+  onChangeRole,
+}) {
+  return (
+    <section className="auth-card auth-admin-panel">
+      <h2>Admin Access Control</h2>
+      <p className="auth-account-meta">
+        Manage who stays a visitor, becomes a member, or gets full admin access.
+      </p>
+      {error ? <p className="engagement-error">{error}</p> : null}
+      {loading ? <p>Loading members...</p> : null}
+      {!loading && !profiles.length ? <p>No signed-in users are available yet.</p> : null}
+      <div className="auth-admin-list">
+        {profiles.map((entry) => {
+          const isSaving = savingUserId === entry.userId;
+          const isSelf = entry.userId === currentAdminId;
+
+          return (
+            <article key={entry.userId} className="auth-admin-item">
+              <div>
+                <strong>{entry.displayName}</strong>
+                <p>{entry.email}</p>
+                <p>
+                  Current role: {entry.role} | Requested: {entry.requestedRole}
+                </p>
+              </div>
+              <label className="auth-admin-role-field">
+                <span>Access</span>
+                <select
+                  value={entry.role}
+                  disabled={isSaving || isSelf}
+                  onChange={(event) => onChangeRole(entry.userId, event.target.value)}
+                >
+                  <option value="visitor">Visitor</option>
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+            </article>
+          );
+        })}
+      </div>
+      <p className="auth-account-meta">
+        <code>dexteritycoder@gmail.com</code> is always treated as a default admin account.
+      </p>
+    </section>
+  );
+}
+
 function AccountPage({ siteData, auth }) {
   usePageSetup("Account | Dexteritycoder", "post-page");
+
+  const profile = auth.profile || {
+    displayName: auth.user?.email || "Member",
+    email: auth.user?.email || "",
+    role: "visitor",
+    requestedRole: "visitor",
+    authProvider: "email",
+  };
+  const [managedProfiles, setManagedProfiles] = useState([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [savingUserId, setSavingUserId] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAdminProfiles() {
+      if (!auth.user || profile.role !== "admin") {
+        setManagedProfiles([]);
+        setAdminError("");
+        setAdminLoading(false);
+        return;
+      }
+
+      setAdminLoading(true);
+      try {
+        const profiles = await fetchAdminProfiles();
+        if (!active) {
+          return;
+        }
+        setManagedProfiles(Array.isArray(profiles) ? profiles : []);
+        setAdminError("");
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setAdminError(loadError.message || "Could not load admin profiles.");
+      } finally {
+        if (active) {
+          setAdminLoading(false);
+        }
+      }
+    }
+
+    loadAdminProfiles();
+
+    return () => {
+      active = false;
+    };
+  }, [auth.user?.id, profile.role]);
 
   if (auth.loading) {
     return (
@@ -3111,14 +3220,6 @@ function AccountPage({ siteData, auth }) {
   if (!auth.user) {
     return <Navigate to="/auth" replace />;
   }
-
-  const profile = auth.profile || {
-    displayName: auth.user.email || "Member",
-    email: auth.user.email || "",
-    role: "visitor",
-    requestedRole: "visitor",
-    authProvider: "email",
-  };
 
   const roleCards = {
     admin: [
@@ -3137,6 +3238,27 @@ function AccountPage({ siteData, auth }) {
       "Profile-based engagement and future saved activity history",
     ],
   };
+
+  async function handleRoleChange(userId, role) {
+    setSavingUserId(userId);
+    setAdminError("");
+
+    try {
+      const response = await updateAdminProfileRole({ userId, role });
+      if (Array.isArray(response?.profiles)) {
+        setManagedProfiles(response.profiles);
+      } else {
+        const profiles = await fetchAdminProfiles();
+        setManagedProfiles(Array.isArray(profiles) ? profiles : []);
+      }
+      await auth.refreshProfile().catch(() => null);
+      auth.setNotice("Admin access updated.");
+    } catch (updateError) {
+      setAdminError(updateError.message || "Could not update that user.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -3166,6 +3288,16 @@ function AccountPage({ siteData, auth }) {
             Log Out
           </button>
         </section>
+        {profile.role === "admin" ? (
+          <AdminAccessPanel
+            currentAdminId={profile.userId}
+            error={adminError}
+            loading={adminLoading}
+            profiles={managedProfiles}
+            savingUserId={savingUserId}
+            onChangeRole={handleRoleChange}
+          />
+        ) : null}
       </main>
     </Shell>
   );

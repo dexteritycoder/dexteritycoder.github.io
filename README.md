@@ -64,3 +64,7 @@ For Google and GitHub in Supabase Auth:
 ### Admin access
 
 The role selector is live, but true admin access is only granted automatically when the signed-in email is present in `AUTH_ADMIN_EMAILS`. This prevents arbitrary users from promoting themselves to admin just by choosing the admin role during signup.
+
+`dexteritycoder@gmail.com` is also treated as a built-in default admin account even if `AUTH_ADMIN_EMAILS` is empty.
+
+Once that account signs in, the `/account` page now includes an admin access panel where admins can promote or demote signed-in users between `visitor`, `member`, and `admin`.
