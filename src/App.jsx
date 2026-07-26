@@ -2786,9 +2786,9 @@ function AuthPage({ siteData, auth }) {
           ) : null}
 
           <div className="auth-help-text">
-            <p>Google and GitHub OAuth use Supabase as the callback target, so their client secrets belong in Supabase provider settings, not in frontend code.</p>
-            <p>If Google says access is restricted, add your email as a test user or publish the OAuth consent screen before trying again.</p>
-            <p>Admin requests are stored, but unrestricted admin access should still be limited with `AUTH_ADMIN_EMAILS`.</p>
+            <p>Use Google, GitHub, or email to create your account and continue where you left off.</p>
+            <p>Your likes, comments, and profile activity stay connected to your signed-in account.</p>
+            <p>Need admin access? Request it during sign up and approved emails will be elevated automatically.</p>
           </div>
         </section>
       </main>

@@ -515,6 +515,7 @@ body.menu-open .line:nth-child(3) {
 
 .auth-help-text {
     margin-top: 18px;
+    text-align: center;
 }
 
 .auth-success {
