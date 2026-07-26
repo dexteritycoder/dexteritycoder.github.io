@@ -5,11 +5,13 @@ import react from "@vitejs/plugin-react";
 const require = createRequire(import.meta.url);
 const engagementHandler = require("./api/engagement.js");
 const accountHandler = require("./api/account.js");
+const authConfigHandler = require("./api/auth-config.js");
 
 function engagementApiPlugin() {
   const routes = new Map([
     ["/api/engagement", engagementHandler],
     ["/api/account", accountHandler],
+    ["/api/auth-config", authConfigHandler],
   ]);
 
   async function runHandler(req, res, handler) {

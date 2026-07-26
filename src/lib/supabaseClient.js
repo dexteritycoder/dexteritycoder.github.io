@@ -1,6 +1,42 @@
 import { createClient } from "@supabase/supabase-js";
 
 let supabaseClient;
+let runtimeConfig;
+let runtimeConfigPromise;
+
+export async function loadSupabaseRuntimeConfig() {
+  if (runtimeConfig) {
+    return runtimeConfig;
+  }
+
+  if (!runtimeConfigPromise) {
+    runtimeConfigPromise = fetch("/api/auth-config", {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Could not load Supabase auth configuration.");
+        }
+
+        const payload = await response.json();
+        runtimeConfig = {
+          url: String(payload?.url || "").trim(),
+          publishableKey: String(payload?.publishableKey || "").trim(),
+        };
+        return runtimeConfig;
+      })
+      .catch((error) => {
+        runtimeConfigPromise = undefined;
+        throw error;
+      });
+  }
+
+  return runtimeConfigPromise;
+}
 
 export function getSupabaseClient() {
   if (!supabaseClient) {
@@ -9,7 +45,7 @@ export function getSupabaseClient() {
 
     if (!url || !key) {
       throw new Error(
-        "Supabase auth is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY."
+        "Supabase auth is not configured. Add a Supabase URL and publishable key in your deployed environment."
       );
     }
 
@@ -26,12 +62,13 @@ export function getSupabaseClient() {
 }
 
 export function resolveSupabaseUrl() {
-  return String(import.meta.env.VITE_SUPABASE_URL || "").trim();
+  return String(runtimeConfig?.url || import.meta.env.VITE_SUPABASE_URL || "").trim();
 }
 
 export function resolveSupabasePublishableKey() {
   return String(
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    runtimeConfig?.publishableKey ||
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
       import.meta.env.VITE_SUPABASE_ANON_KEY ||
       ""
   ).trim();

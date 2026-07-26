@@ -48,6 +48,7 @@ async function requireSupabaseUser(req) {
 function resolveSupabaseUrl() {
   return firstEnvValue([
     "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
     "VITE_SUPABASE_URL",
   ]);
 }
@@ -56,6 +57,8 @@ function resolveSupabasePublishableKey() {
   return firstEnvValue([
     "SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "VITE_SUPABASE_PUBLISHABLE_KEY",
     "VITE_SUPABASE_ANON_KEY",
   ]);

@@ -34,6 +34,7 @@ import {
   getAuthRedirectUrl,
   getPendingRequestedRole,
   getSupabaseClient,
+  loadSupabaseRuntimeConfig,
   resolveSupabasePublishableKey,
   resolveSupabaseUrl,
   setPendingRequestedRole,
@@ -175,6 +176,128 @@ function buildProjectRoute(repo) {
   return `/project/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
 }
 
+function normalizeAuthError(error, context = {}) {
+  const fallback = "We couldn't complete authentication. Please try again.";
+  const sourceMessage = String(
+    error?.message ||
+      error?.error_description ||
+      error?.description ||
+      error?.error ||
+      ""
+  ).trim();
+  const raw = sourceMessage.toLowerCase();
+
+  if (!sourceMessage) {
+    return fallback;
+  }
+
+  if (raw.includes("invalid login credentials")) {
+    return "That email or password did not match. Please check your details and try again.";
+  }
+
+  if (raw.includes("email not confirmed")) {
+    return "Your email is not confirmed yet. Open the confirmation link from your inbox, then sign in again.";
+  }
+
+  if (raw.includes("password should be at least")) {
+    return "Use a stronger password with at least 8 characters.";
+  }
+
+  if (raw.includes("user already registered")) {
+    return "An account with this email already exists. Try logging in instead.";
+  }
+
+  if (raw.includes("signup is disabled")) {
+    return "New account creation is disabled right now.";
+  }
+
+  if (raw.includes("provider is not enabled")) {
+    return `The ${context.provider || "selected"} sign-in option is not enabled yet.`;
+  }
+
+  if (raw.includes("unsupported provider")) {
+    return `The ${context.provider || "selected"} sign-in option is not supported yet.`;
+  }
+
+  if (raw.includes("access_denied")) {
+    return `Access was denied by ${context.provider || "the provider"}. If this is Google, add your email as a test user or publish the OAuth consent screen first.`;
+  }
+
+  if (raw.includes("oauth") && raw.includes("redirect")) {
+    return "The sign-in callback URL does not match your provider setup. Check the Supabase redirect URLs and provider callback settings.";
+  }
+
+  if (raw.includes("code verifier") || raw.includes("code challenge")) {
+    return "This sign-in attempt expired before it finished. Please start the sign-in flow again.";
+  }
+
+  if (raw.includes("failed to fetch") || raw.includes("networkerror")) {
+    return "A network issue interrupted sign-in. Check your connection and try again.";
+  }
+
+  return sourceMessage;
+}
+
+function getAuthCallbackErrorFromUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const url = new URL(window.location.href);
+  const searchParams = url.searchParams;
+  const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  const errorCode = searchParams.get("error") || hashParams.get("error") || "";
+  const errorDescription =
+    searchParams.get("error_description") ||
+    hashParams.get("error_description") ||
+    searchParams.get("error_code") ||
+    "";
+
+  if (!errorCode && !errorDescription) {
+    return null;
+  }
+
+  return {
+    error: errorCode,
+    error_description: errorDescription,
+  };
+}
+
+function clearAuthCallbackArtifacts() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  const authKeys = [
+    "code",
+    "error",
+    "error_code",
+    "error_description",
+    "provider_token",
+    "provider_refresh_token",
+    "refresh_token",
+    "access_token",
+    "token_type",
+    "type",
+  ];
+
+  authKeys.forEach((key) => {
+    url.searchParams.delete(key);
+  });
+
+  if (url.hash) {
+    const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+    authKeys.forEach((key) => {
+      hashParams.delete(key);
+    });
+    const nextHash = hashParams.toString();
+    url.hash = nextHash ? `#${nextHash}` : "";
+  }
+
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
 function useSupabaseAuth() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -183,19 +306,86 @@ function useSupabaseAuth() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [promptMessage, setPromptMessage] = useState("");
-  const configured = Boolean(resolveSupabaseUrl() && resolveSupabasePublishableKey());
+  const [callbackReady, setCallbackReady] = useState(false);
+  const [configured, setConfigured] = useState(
+    Boolean(resolveSupabaseUrl() && resolveSupabasePublishableKey())
+  );
 
   useEffect(() => {
-    if (!configured) {
-      setLoading(false);
-      return undefined;
-    }
-
-    const supabase = getSupabaseClient();
     let active = true;
+    let subscription;
 
     async function initialize() {
       try {
+        try {
+          await loadSupabaseRuntimeConfig();
+        } catch (configError) {
+          console.warn("[auth-ui] runtime config load failed", configError);
+        }
+
+        const hasConfig = Boolean(resolveSupabaseUrl() && resolveSupabasePublishableKey());
+        if (!active) {
+          return;
+        }
+
+        setConfigured(hasConfig);
+
+        if (!hasConfig) {
+          setSession(null);
+          setProfile(null);
+          setLoading(false);
+          setCallbackReady(true);
+          return;
+        }
+
+        const supabase = getSupabaseClient();
+        const callbackError = getAuthCallbackErrorFromUrl();
+        if (callbackError && active) {
+          setError(normalizeAuthError(callbackError));
+          clearPendingRequestedRole();
+          clearAuthCallbackArtifacts();
+        }
+
+        const authSubscription = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+          console.log("[auth-ui] state change", { event });
+          setSession(nextSession);
+
+          if (!nextSession?.user) {
+            setProfile(null);
+            if (event === "SIGNED_OUT") {
+              setNotice("You have been signed out.");
+            }
+            return;
+          }
+
+          try {
+            const nextProfile = await syncProfile(nextSession.user);
+            if (active) {
+              setProfile(nextProfile);
+              if (event === "SIGNED_IN") {
+                setNotice("You are now signed in.");
+                clearPendingRequestedRole();
+              }
+            }
+          } catch (profileError) {
+            if (active) {
+              setError(normalizeAuthError(profileError));
+            }
+          }
+        });
+        subscription = authSubscription.data.subscription;
+
+        const url = new URL(window.location.href);
+        if (url.pathname === "/auth/callback" && url.searchParams.get("code")) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(url.href);
+          if (exchangeError) {
+            throw exchangeError;
+          }
+          if (active) {
+            clearAuthCallbackArtifacts();
+          }
+        }
+
         const {
           data: { session: initialSession },
         } = await supabase.auth.getSession();
@@ -215,52 +405,23 @@ function useSupabaseAuth() {
         }
       } catch (authError) {
         if (active) {
-          setError(authError.message);
+          setError(normalizeAuthError(authError));
         }
       } finally {
         if (active) {
           setLoading(false);
+          setCallbackReady(true);
         }
       }
     }
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
-      console.log("[auth-ui] state change", { event });
-      setSession(nextSession);
-
-      if (!nextSession?.user) {
-        setProfile(null);
-        if (event === "SIGNED_OUT") {
-          setNotice("You have been signed out.");
-        }
-        return;
-      }
-
-      try {
-        const nextProfile = await syncProfile(nextSession.user);
-        if (active) {
-          setProfile(nextProfile);
-          if (event === "SIGNED_IN") {
-            setNotice("You are now signed in.");
-            clearPendingRequestedRole();
-          }
-        }
-      } catch (profileError) {
-        if (active) {
-          setError(profileError.message);
-        }
-      }
-    });
 
     initialize();
 
     return () => {
       active = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [configured]);
+  }, []);
 
   async function syncProfile(user, overrides = {}) {
     const requestedRole = overrides.requestedRole || getPendingRequestedRole() || user?.user_metadata?.requested_role || "visitor";
@@ -290,13 +451,25 @@ function useSupabaseAuth() {
     setNotice("");
 
     try {
+      const normalizedDisplayName = String(displayName || "").trim();
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const normalizedPassword = String(password || "");
+
+      if (!normalizedDisplayName) {
+        throw new Error("Please add a display name.");
+      }
+
+      if (normalizedPassword.length < 8) {
+        throw new Error("Use a stronger password with at least 8 characters.");
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: normalizedEmail,
+        password: normalizedPassword,
         options: {
           emailRedirectTo: getAuthRedirectUrl(),
           data: {
-            display_name: displayName,
+            display_name: normalizedDisplayName,
             requested_role: requestedRole,
           },
         },
@@ -309,7 +482,10 @@ function useSupabaseAuth() {
       setPendingRequestedRole(requestedRole);
 
       if (data.session?.user) {
-        const nextProfile = await syncProfile(data.session.user, { displayName, requestedRole });
+        const nextProfile = await syncProfile(data.session.user, {
+          displayName: normalizedDisplayName,
+          requestedRole,
+        });
         setProfile(nextProfile);
         setSession(data.session);
         setNotice("Account created successfully.");
@@ -318,7 +494,7 @@ function useSupabaseAuth() {
       }
     } catch (authError) {
       console.error("[auth-ui] signUpWithEmail failed", authError);
-      setError(authError.message);
+      setError(normalizeAuthError(authError));
       throw authError;
     } finally {
       setBusy(false);
@@ -336,9 +512,12 @@ function useSupabaseAuth() {
     setNotice("");
 
     try {
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const normalizedPassword = String(password || "");
+
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: normalizedEmail,
+        password: normalizedPassword,
       });
 
       if (signInError) {
@@ -353,7 +532,7 @@ function useSupabaseAuth() {
       setNotice("Signed in successfully.");
     } catch (authError) {
       console.error("[auth-ui] signInWithEmail failed", authError);
-      setError(authError.message);
+      setError(normalizeAuthError(authError));
       throw authError;
     } finally {
       setBusy(false);
@@ -376,6 +555,7 @@ function useSupabaseAuth() {
         provider,
         options: {
           redirectTo: getAuthRedirectUrl(),
+          queryParams: provider === "google" ? { prompt: "select_account" } : undefined,
         },
       });
 
@@ -384,7 +564,8 @@ function useSupabaseAuth() {
       }
     } catch (authError) {
       console.error("[auth-ui] signInWithProvider failed", { provider, error: authError });
-      setError(authError.message);
+      setError(normalizeAuthError(authError, { provider }));
+      clearPendingRequestedRole();
       throw authError;
     } finally {
       setBusy(false);
@@ -408,7 +589,7 @@ function useSupabaseAuth() {
       clearPendingRequestedRole();
     } catch (authError) {
       console.error("[auth-ui] signOut failed", authError);
-      setError(authError.message);
+      setError(normalizeAuthError(authError));
       throw authError;
     } finally {
       setBusy(false);
@@ -430,6 +611,7 @@ function useSupabaseAuth() {
     error,
     notice,
     promptMessage,
+    callbackReady,
     session,
     user: session?.user || null,
     profile,
@@ -2531,68 +2713,81 @@ function AuthPage({ siteData, auth }) {
           </div>
 
           {!auth.configured ? (
-            <p className="engagement-error">
-              Supabase auth is not configured yet. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` first.
-            </p>
+            <div className="auth-help-text">
+              <p className="engagement-error">
+                Authentication is temporarily unavailable because this site is missing its Supabase project URL and publishable key.
+              </p>
+              <p>
+                Likes and comments can run from the database connection alone, but sign-up and OAuth still need a Supabase project URL and a publishable key so the browser can start an auth session.
+              </p>
+              <p>
+                This site now tries to read those values from the deployed server environment first, using the same runtime pattern as the engagement API.
+              </p>
+            </div>
           ) : null}
           {auth.error ? <p className="engagement-error">{auth.error}</p> : null}
           {auth.notice ? <p className="auth-success">{auth.notice}</p> : null}
 
-          <div className="auth-role-picker">
-            <AuthRoleDropdown role={role} onChange={setRole} />
-          </div>
+          {auth.configured ? (
+            <>
+              <div className="auth-role-picker">
+                <AuthRoleDropdown role={role} onChange={setRole} />
+              </div>
 
-          <div className="auth-provider-grid">
-            <button type="button" className="auth-provider-btn" onClick={() => handleProviderSignIn("google")} disabled={!auth.configured || auth.busy}>
-              <span className="auth-provider-icon" aria-hidden="true">
-                <img src="/images/google.svg" alt="" />
-              </span>
-              <span>Continue with Google</span>
-            </button>
-            <button type="button" className="auth-provider-btn" onClick={() => handleProviderSignIn("github")} disabled={!auth.configured || auth.busy}>
-              <span className="auth-provider-icon" aria-hidden="true">
-                <img src="/images/github.svg" alt="" />
-              </span>
-              <span>Continue with GitHub</span>
-            </button>
-          </div>
+              <div className="auth-provider-grid">
+                <button type="button" className="auth-provider-btn" onClick={() => handleProviderSignIn("google")} disabled={!auth.configured || auth.busy}>
+                  <span className="auth-provider-icon" aria-hidden="true">
+                    <img src="/images/google.svg" alt="" />
+                  </span>
+                  <span>Continue with Google</span>
+                </button>
+                <button type="button" className="auth-provider-btn" onClick={() => handleProviderSignIn("github")} disabled={!auth.configured || auth.busy}>
+                  <span className="auth-provider-icon" aria-hidden="true">
+                    <img src="/images/github.svg" alt="" />
+                  </span>
+                  <span>Continue with GitHub</span>
+                </button>
+              </div>
 
-          <div className="auth-divider"><span>or use email</span></div>
+              <div className="auth-divider"><span>or use email</span></div>
 
-          <form className="auth-form" onSubmit={handleEmailSubmit}>
-            {mode === "signup" ? (
-              <input
-                type="text"
-                placeholder="Display name"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                maxLength={80}
-                required
-              />
-            ) : null}
-            <input
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              maxLength={160}
-              required
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-            <button type="submit" className="auth-submit-btn" disabled={!auth.configured || auth.busy}>
-              {auth.busy ? "Working..." : mode === "signup" ? "Create Account" : "Log In"}
-            </button>
-          </form>
+              <form className="auth-form" onSubmit={handleEmailSubmit}>
+                {mode === "signup" ? (
+                  <input
+                    type="text"
+                    placeholder="Display name"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    maxLength={80}
+                    required
+                  />
+                ) : null}
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  maxLength={160}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  minLength={8}
+                  required
+                />
+                <button type="submit" className="auth-submit-btn" disabled={!auth.configured || auth.busy}>
+                  {auth.busy ? "Working..." : mode === "signup" ? "Create Account" : "Log In"}
+                </button>
+              </form>
+            </>
+          ) : null}
 
           <div className="auth-help-text">
-            <p>Google and GitHub OAuth will start working once you add the provider keys in Supabase and the public env vars in Vercel.</p>
+            <p>Google and GitHub OAuth use Supabase as the callback target, so their client secrets belong in Supabase provider settings, not in frontend code.</p>
+            <p>If Google says access is restricted, add your email as a test user or publish the OAuth consent screen before trying again.</p>
             <p>Admin requests are stored, but unrestricted admin access should still be limited with `AUTH_ADMIN_EMAILS`.</p>
           </div>
         </section>
@@ -2606,16 +2801,23 @@ function AuthCallbackPage({ siteData, auth }) {
   usePageSetup("Signing In | Dexteritycoder", "post-page");
 
   useEffect(() => {
-    if (!auth.loading && auth.user) {
+    if (!auth.loading && auth.callbackReady && auth.user) {
       navigate("/account", { replace: true });
     }
-  }, [auth.loading, auth.user, navigate]);
+  }, [auth.loading, auth.callbackReady, auth.user, navigate]);
+
+  const isWaiting = auth.loading || !auth.callbackReady;
 
   return (
     <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml="<b>FINISHING</b> SIGN IN" />
       <main className="post-article">
-        <p>{auth.error || "Completing your sign in..."}</p>
+        <p>{isWaiting ? "Completing your sign in..." : auth.error || "Redirecting you to your account..."}</p>
+        {!isWaiting && auth.error ? (
+          <p>
+            Return to <a href="/auth">the auth page</a> and try again after checking your provider setup.
+          </p>
+        ) : null}
       </main>
     </Shell>
   );

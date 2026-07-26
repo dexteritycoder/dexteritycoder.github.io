@@ -37,3 +37,10 @@
 ## For Normal
 - just login credentials, profile picture, saved likes and comments
 - And gets email updates for updates in the sites (new posts, comments) - Subscribe to newsletter by default
+
+
+## Admin panel will be just a instance of the website
+where:
+- every comments will be shown and with a button approve or disapprove with it (only work once then delete button only (not for pre existing comments))
+
+- Write post option in production project & writings page and about page and etc every page

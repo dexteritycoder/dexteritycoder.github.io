@@ -56,9 +56,10 @@ For Google and GitHub in Supabase Auth:
 
 1. Open `Authentication` -> `Sign In / Providers` in Supabase.
 2. Enable `Google` and `GitHub`.
-3. Paste the client ID and secret from Google Cloud / GitHub OAuth Apps.
-4. Keep Supabase's callback URL for each provider.
+3. Paste the provider client ID and secret into Supabase. Do not hardcode provider secrets in the frontend or commit them to this repo.
+4. In Google Cloud and GitHub OAuth settings, use the callback URL shown by Supabase for each provider.
 5. Add the site URL and redirect URLs above in Supabase Auth URL settings.
+6. If Google shows `access_denied` or says the app is restricted to test users, add your email under the Google OAuth consent screen test users list or publish the consent screen.
 
 ### Admin access
 
