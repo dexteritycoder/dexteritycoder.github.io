@@ -16,6 +16,12 @@ module.exports = async function handler(req, res) {
 
   const url = resolveSupabaseUrl();
   const publishableKey = resolveSupabasePublishableKey();
+  const avatarBucket = String(
+    process.env.SUPABASE_AVATAR_BUCKET ||
+      process.env.NEXT_PUBLIC_SUPABASE_AVATAR_BUCKET ||
+      process.env.VITE_SUPABASE_AVATAR_BUCKET ||
+      "avatars"
+  ).trim();
 
   res.statusCode = 200;
   res.end(
@@ -23,6 +29,7 @@ module.exports = async function handler(req, res) {
       configured: Boolean(url && publishableKey),
       url,
       publishableKey,
+      avatarBucket,
     })
   );
 };

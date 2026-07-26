@@ -26,6 +26,7 @@ export async function loadSupabaseRuntimeConfig() {
         runtimeConfig = {
           url: String(payload?.url || "").trim(),
           publishableKey: String(payload?.publishableKey || "").trim(),
+          avatarBucket: String(payload?.avatarBucket || "avatars").trim() || "avatars",
         };
         return runtimeConfig;
       })
@@ -80,6 +81,14 @@ export function getAuthRedirectUrl() {
   }
 
   return `${window.location.origin}/auth/callback`;
+}
+
+export function resolveAvatarBucketName() {
+  return String(
+    runtimeConfig?.avatarBucket ||
+      import.meta.env.VITE_SUPABASE_AVATAR_BUCKET ||
+      "avatars"
+  ).trim() || "avatars";
 }
 
 export function getPendingRequestedRole() {

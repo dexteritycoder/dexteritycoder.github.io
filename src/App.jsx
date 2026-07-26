@@ -35,6 +35,7 @@ import {
   getPendingRequestedRole,
   getSupabaseClient,
   loadSupabaseRuntimeConfig,
+  resolveAvatarBucketName,
   resolveSupabasePublishableKey,
   resolveSupabaseUrl,
   setPendingRequestedRole,
@@ -296,6 +297,24 @@ function clearAuthCallbackArtifacts() {
   }
 
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
+function getDisplayNameFromProfile(profile, user) {
+  return String(profile?.displayName || user?.email || "Member").trim();
+}
+
+function getAvatarFallback(profile, user) {
+  const label = getDisplayNameFromProfile(profile, user);
+  return String(label)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "M";
+}
+
+function getAvatarUrl(profile) {
+  return String(profile?.avatarUrl || "").trim();
 }
 
 function useSupabaseAuth() {
@@ -596,6 +615,73 @@ function useSupabaseAuth() {
     }
   }
 
+  async function updateProfile(updates = {}) {
+    if (!session?.user) {
+      throw new Error("Please sign in to update your profile.");
+    }
+
+    const payload = {
+      displayName: String(
+        updates.displayName || profile?.displayName || session.user.email || "Member"
+      ).trim(),
+      avatarUrl: String(updates.avatarUrl || "").trim(),
+      requestedRole: profile?.requestedRole || getPendingRequestedRole() || "visitor",
+      newsletterSubscribed:
+        typeof profile?.newsletterSubscribed === "boolean" ? profile.newsletterSubscribed : true,
+    };
+
+    const nextProfile = await saveAccountProfile(payload);
+    setProfile(nextProfile);
+    setNotice("Profile updated.");
+    setError("");
+    return nextProfile;
+  }
+
+  async function uploadProfileAvatar(file) {
+    if (!session?.user) {
+      throw new Error("Please sign in to upload a profile picture.");
+    }
+
+    if (!file) {
+      throw new Error("Choose an image before uploading.");
+    }
+
+    if (!String(file.type || "").startsWith("image/")) {
+      throw new Error("Profile pictures must be image files.");
+    }
+
+    if (Number(file.size || 0) > 4 * 1024 * 1024) {
+      throw new Error("Profile pictures must be 4 MB or smaller.");
+    }
+
+    const supabase = getSupabaseClient();
+    const bucket = resolveAvatarBucketName();
+    const extension = String(file.name || "avatar.png").split(".").pop()?.toLowerCase() || "png";
+    const safeExtension = extension.replace(/[^a-z0-9]/gi, "") || "png";
+    const filePath = `${session.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+    if (uploadError) {
+      throw new Error(
+        "Could not upload the profile picture. Make sure the Supabase Storage bucket exists and allows authenticated uploads."
+      );
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(bucket).getPublicUrl(filePath);
+
+    if (!publicUrl) {
+      throw new Error("The profile picture uploaded, but its public URL could not be created.");
+    }
+
+    return publicUrl;
+  }
+
   function openAuthPrompt(message) {
     setPromptMessage(message || "Please sign in to continue.");
   }
@@ -623,6 +709,8 @@ function useSupabaseAuth() {
     signInWithEmail,
     signInWithProvider,
     signOutUser,
+    updateProfile,
+    uploadProfileAvatar,
     refreshProfile: async () => {
       if (!session?.user) {
         return null;
@@ -1453,11 +1541,20 @@ function MinimalFooter({ footer }) {
 
 function Navbar({ siteData, auth }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileDraftName, setProfileDraftName] = useState("");
+  const [profileDraftAvatar, setProfileDraftAvatar] = useState("");
+  const [profileDraftFile, setProfileDraftFile] = useState(null);
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     function handleEscape(event) {
       if (event.key === "Escape") {
         setMenuOpen(false);
+        setProfileMenuOpen(false);
       }
     }
 
@@ -1466,11 +1563,14 @@ function Navbar({ siteData, auth }) {
       const trigger = document.querySelector(".ham");
 
       if (!menuOpen || !nav || !trigger) {
-        return;
+        if (!profileMenuOpen) {
+          return;
+        }
       }
 
       if (!nav.contains(event.target) && !trigger.contains(event.target)) {
         setMenuOpen(false);
+        setProfileMenuOpen(false);
       }
     }
 
@@ -1480,7 +1580,7 @@ function Navbar({ siteData, auth }) {
       document.removeEventListener("keydown", handleEscape);
       document.removeEventListener("click", handleOutsideClick);
     };
-  }, [menuOpen]);
+  }, [menuOpen, profileMenuOpen]);
 
   useEffect(() => {
     document.body.classList.toggle("menu-open", menuOpen);
@@ -1488,6 +1588,60 @@ function Navbar({ siteData, auth }) {
       document.body.classList.remove("menu-open");
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    setProfileDraftName(auth.profile?.displayName || "");
+    setProfileDraftAvatar(auth.profile?.avatarUrl || "");
+  }, [auth.profile?.displayName, auth.profile?.avatarUrl]);
+
+  useEffect(() => {
+    if (!profileDraftFile) {
+      setProfilePreviewUrl("");
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(profileDraftFile);
+    setProfilePreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [profileDraftFile]);
+
+  async function handleProfileSave(event) {
+    event.preventDefault();
+    const trimmedName = profileDraftName.trim();
+    let nextAvatarUrl = profileDraftAvatar.trim();
+
+    if (!trimmedName) {
+      setProfileError("Display name is required.");
+      return;
+    }
+
+    setProfileBusy(true);
+    setProfileError("");
+
+    try {
+      if (profileDraftFile) {
+        nextAvatarUrl = await auth.uploadProfileAvatar(profileDraftFile);
+      }
+
+      await auth.updateProfile({
+        displayName: trimmedName,
+        avatarUrl: nextAvatarUrl,
+      });
+      setProfileDraftAvatar(nextAvatarUrl);
+      setProfileDraftFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setProfileMenuOpen(false);
+    } catch (error) {
+      setProfileError(error.message || "Could not update your profile.");
+    } finally {
+      setProfileBusy(false);
+    }
+  }
 
   return (
     <>
@@ -1515,23 +1669,132 @@ function Navbar({ siteData, auth }) {
               </TransitionLink>
             ))}
             {auth.user ? (
-              <>
-                <TransitionLink href="/account" onClick={() => setMenuOpen(false)}>
-                  <li>ACCOUNT</li>
-                </TransitionLink>
-                <a
-                  href="#sign-out"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    setMenuOpen(false);
-                    auth.signOutUser().catch(() => {
-                      // Error state is already tracked by auth.
-                    });
+              <li
+                className={`nav-profile-item${profileMenuOpen ? " is-open" : ""}`}
+                onMouseEnter={() => {
+                  setProfileMenuOpen(true);
+                  setProfileError("");
+                }}
+                onMouseLeave={() => {
+                  setProfileMenuOpen(false);
+                  setProfileError("");
+                }}
+              >
+                <button
+                  type="button"
+                  className="nav-profile-trigger"
+                  aria-label="Open profile menu"
+                  aria-expanded={profileMenuOpen}
+                  onClick={() => {
+                    setProfileMenuOpen((value) => !value);
+                    setProfileError("");
                   }}
                 >
-                  <li>LOG OUT</li>
-                </a>
-              </>
+                  {profilePreviewUrl || getAvatarUrl(auth.profile) ? (
+                    <img
+                      className="nav-profile-avatar"
+                      src={profilePreviewUrl || getAvatarUrl(auth.profile)}
+                      alt={getDisplayNameFromProfile(auth.profile, auth.user)}
+                    />
+                  ) : (
+                    <span className="nav-profile-avatar nav-profile-avatar-fallback">
+                      {getAvatarFallback(auth.profile, auth.user)}
+                    </span>
+                  )}
+                </button>
+                <div className="nav-profile-menu">
+                  <div className="nav-profile-summary">
+                    {profilePreviewUrl || getAvatarUrl(auth.profile) ? (
+                      <img
+                        className="nav-profile-summary-avatar"
+                        src={profilePreviewUrl || getAvatarUrl(auth.profile)}
+                        alt={getDisplayNameFromProfile(auth.profile, auth.user)}
+                      />
+                    ) : (
+                      <span className="nav-profile-summary-avatar nav-profile-avatar-fallback">
+                        {getAvatarFallback(auth.profile, auth.user)}
+                      </span>
+                    )}
+                    <div>
+                      <strong>{getDisplayNameFromProfile(auth.profile, auth.user)}</strong>
+                      <p>{auth.user.email}</p>
+                    </div>
+                  </div>
+                  <TransitionLink
+                    href="/account"
+                    className="nav-profile-link"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setProfileMenuOpen(false);
+                    }}
+                  >
+                    View Profile
+                  </TransitionLink>
+                  <form className="nav-profile-form" onSubmit={handleProfileSave}>
+                    <label>
+                      <span>Edit name</span>
+                      <input
+                        type="text"
+                        value={profileDraftName}
+                        onChange={(event) => setProfileDraftName(event.target.value)}
+                        maxLength={80}
+                        placeholder="Display name"
+                      />
+                    </label>
+                    <label>
+                      <span>Profile picture</span>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="nav-profile-file-input"
+                        onChange={(event) => {
+                          const nextFile = event.target.files?.[0] || null;
+                          setProfileDraftFile(nextFile);
+                          setProfileError("");
+                        }}
+                      />
+                    </label>
+                    <div className="nav-profile-upload-row">
+                      <button
+                        type="button"
+                        className="nav-profile-upload-btn"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        {profileDraftFile ? "Choose Another Image" : "Upload Image"}
+                      </button>
+                      {profileDraftFile ? <span className="nav-profile-file-name">{profileDraftFile.name}</span> : null}
+                    </div>
+                    <label>
+                      <span>Or paste image URL</span>
+                      <input
+                        type="url"
+                        value={profileDraftAvatar}
+                        onChange={(event) => setProfileDraftAvatar(event.target.value)}
+                        placeholder="https://example.com/avatar.jpg"
+                      />
+                    </label>
+                    {profilePreviewUrl ? <p className="nav-profile-helper">New image selected. Save changes to apply it.</p> : null}
+                    {profileError ? <p className="nav-profile-error">{profileError}</p> : null}
+                    <button type="submit" className="nav-profile-save" disabled={profileBusy}>
+                      {profileBusy ? "Saving..." : "Save Changes"}
+                    </button>
+                  </form>
+                  <button
+                    type="button"
+                    className="nav-profile-logout"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setProfileMenuOpen(false);
+                      auth.signOutUser().catch(() => {
+                        // Error state is already tracked by auth.
+                      });
+                    }}
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </li>
             ) : (
               <TransitionLink href="/auth" className="nav-auth-cta" onClick={() => setMenuOpen(false)}>
                 <li>SIGN UP</li>
