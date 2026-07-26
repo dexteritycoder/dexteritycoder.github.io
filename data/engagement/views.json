@@ -1,33 +1,33 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-24T00:00:00.000Z",
+  "updatedAt": "2026-07-26T12:27:44.381Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
-      "count": 920
+      "count": 0
     },
     "blog:When Hosting Became Business, Creativity Was Buried": {
-      "count": 680
+      "count": 0
     },
     "blog:Why Learning from Scratch Still Matters in the Age of AI": {
-      "count": 980
+      "count": 0
     },
     "article:production-projects": {
-      "count": 870
+      "count": 1
     },
     "article:ai-machine-learning": {
-      "count": 730
+      "count": 0
     },
     "article:train-to-thoughts": {
-      "count": 960
+      "count": 0
     },
     "article:available-for-freelancing": {
-      "count": 540
+      "count": 0
     },
     "project:Offline Music Library System": {
-      "count": 610
+      "count": 0
     },
     "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": {
-      "count": 760
+      "count": 0
     }
   }
 }

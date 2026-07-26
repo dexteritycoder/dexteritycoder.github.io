@@ -35,6 +35,13 @@ import {
   updateAdminProfileRole,
 } from "./lib/accountApi";
 import {
+  fetchAdminDashboard,
+  fetchPublicContent,
+  reviewCommentRequest,
+  reviewContentRequest,
+  submitContentRequest,
+} from "./lib/contentApi";
+import {
   clearPendingRequestedRole,
   getAuthRedirectUrl,
   getPendingRequestedRole,
@@ -180,6 +187,186 @@ function buildProjectRoute(repo) {
   }
 
   return `/project/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+}
+
+function slugifyValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function canManageContent(auth, scope = "writings") {
+  const role = String(auth?.profile?.role || "").trim().toLowerCase();
+  if (role === "admin") {
+    return true;
+  }
+  if (role === "member") {
+    return scope === "writings" || scope === "projects";
+  }
+  return false;
+}
+
+function useManagedContent() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      try {
+        const nextItems = await fetchPublicContent();
+        if (!active) {
+          return;
+        }
+        setItems(Array.isArray(nextItems) ? nextItems : []);
+        setError(null);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(loadError);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function refresh() {
+    const nextItems = await fetchPublicContent();
+    setItems(Array.isArray(nextItems) ? nextItems : []);
+    setError(null);
+    return nextItems;
+  }
+
+  return {
+    items,
+    loading,
+    error,
+    refresh,
+  };
+}
+
+function getApprovedContentByType(content, contentType) {
+  return (content?.items || []).filter((item) => item.contentType === contentType);
+}
+
+function getLatestMatchingContent(items, predicate) {
+  return [...items].filter(predicate).sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))[0] || null;
+}
+
+function mergeBlogPosts(staticPosts, content) {
+  const approvedBlogs = getApprovedContentByType(content, "blog");
+  const merged = Array.isArray(staticPosts) ? [...staticPosts] : [];
+
+  for (const entry of approvedBlogs) {
+    const index = merged.findIndex((item) => slugifyValue(item.id) === entry.targetSlug || slugifyValue(item.title) === entry.targetSlug);
+    const mapped = mapContentItemToBlog(entry);
+    if (index >= 0) {
+      merged[index] = {
+        ...merged[index],
+        ...mapped,
+      };
+    } else {
+      merged.push(mapped);
+    }
+  }
+
+  return merged;
+}
+
+function mapContentItemToBlog(item) {
+  return {
+    id: item.targetSlug,
+    title: item.title,
+    description: item.description,
+    image: item.heroImage || "/featuredimages/1.jpg",
+    author: item.authorName || "Member",
+    date: formatShortDate(item.updatedAt || item.createdAt),
+    readTime: item.readTime || "4 min read",
+    views: 0,
+    comments: 0,
+    likes: 0,
+    category: item.category || (item.authorRole === "admin" ? "Admin" : "Member"),
+    authorRole: item.authorRole || "member",
+    markdown: item.markdown,
+    _managedContentId: item.id,
+  };
+}
+
+function resolveBlogManagedEntry(blogId, content) {
+  return getLatestMatchingContent(getApprovedContentByType(content, "blog"), (item) => item.targetSlug === slugifyValue(blogId));
+}
+
+function resolvePageManagedEntry(section, slug, content) {
+  return getLatestMatchingContent(getApprovedContentByType(content, "page"), (item) => item.section === section && item.targetSlug === slugifyValue(slug));
+}
+
+function mergeProjects(staticProjects, content) {
+  const approvedProjects = getApprovedContentByType(content, "project");
+  const merged = Array.isArray(staticProjects) ? [...staticProjects] : [];
+
+  for (const entry of approvedProjects) {
+    const mapped = mapContentItemToProject(entry);
+    const index = merged.findIndex((item) => slugifyValue(item.id) === entry.targetSlug || slugifyValue(item.title) === entry.targetSlug);
+    if (index >= 0) {
+      merged[index] = {
+        ...merged[index],
+        ...mapped,
+      };
+    } else {
+      merged.push(mapped);
+    }
+  }
+
+  return merged;
+}
+
+function mapContentItemToProject(item) {
+  return {
+    id: item.targetSlug,
+    title: item.title,
+    heroTitle: item.title,
+    description: item.description,
+    image: item.heroImage || "/featuredimages/1.jpg",
+    meta: item.meta || "Managed Project",
+    category: item.category || "",
+    authorRole: item.authorRole || "member",
+    github: item.githubUrl || "",
+    docFile: "",
+    docsMarkdown: item.markdown,
+    _managedContentId: item.id,
+  };
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Jul 26, 2026";
+  }
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function deriveDashboardCounts(data) {
+  return {
+    roleRequests: Array.isArray(data?.roleRequests) ? data.roleRequests.length : 0,
+    comments: Array.isArray(data?.comments) ? data.comments.filter((item) => item.status === "pending").length : 0,
+    content: Array.isArray(data?.contentRequests) ? data.contentRequests.length : 0,
+  };
 }
 
 function normalizeAuthError(error, context = {}) {
@@ -2161,10 +2348,24 @@ function WorksPage({ siteData, engagement, auth }) {
   );
 }
 
-function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth }) {
-  const page = siteData.works.pages[slug];
+function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth, content }) {
+  const managedPage = resolvePageManagedEntry("works", slug, content);
+  const page = {
+    ...siteData.works.pages[slug],
+    title: managedPage?.title || siteData.works.pages[slug].title,
+    documentTitle: managedPage?.documentTitle || siteData.works.pages[slug].documentTitle,
+    heroTitle: managedPage?.title || siteData.works.pages[slug].heroTitle,
+    heroImage: managedPage?.heroImage || siteData.works.pages[slug].heroImage,
+    meta: managedPage?.meta || siteData.works.pages[slug].meta,
+    ctaLabel: managedPage?.ctaLabel || siteData.works.pages[slug].ctaLabel,
+    ctaHref: managedPage?.ctaHref || siteData.works.pages[slug].ctaHref,
+  };
   const { data, error, loading } = useText(page.markdownPath);
   const [projects, setProjects] = useState([]);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [projectEditorOpen, setProjectEditorOpen] = useState(false);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [projectFilter, setProjectFilter] = useState("All");
   const navigateWithTransition = useTransitionNavigate();
 
   usePageSetup(page.documentTitle, "post-page");
@@ -2179,19 +2380,68 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth
     loadProjectsFromJson()
       .then((items) => {
         if (active) {
-          setProjects(normalizeData(items));
+          setProjects(mergeProjects(normalizeData(items), content));
         }
       })
       .catch(() => {
         if (active) {
-          setProjects([]);
+          setProjects(mergeProjects([], content));
         }
       });
 
     return () => {
       active = false;
     };
-  }, [production]);
+  }, [production, content]);
+
+  async function handlePageEdit(form) {
+    setEditorBusy(true);
+    try {
+      const response = await submitContentRequest({
+        ...form,
+        section: "works",
+        contentType: "page",
+        targetSlug: slug,
+        requestKind: "edit",
+      });
+      await content.refresh();
+      auth.setNotice(response?.message || "Page update submitted.");
+      setEditorOpen(false);
+    } catch (submitError) {
+      auth.setError(submitError.message || "Could not submit the page update.");
+    } finally {
+      setEditorBusy(false);
+    }
+  }
+
+  async function handleProjectCreate(form) {
+    setEditorBusy(true);
+    try {
+      const response = await submitContentRequest({
+        ...form,
+        section: "projects",
+        contentType: "project",
+      });
+      await content.refresh();
+      auth.setNotice(response?.message || "Project request submitted.");
+      setProjectEditorOpen(false);
+    } catch (submitError) {
+      auth.setError(submitError.message || "Could not submit the project.");
+    } finally {
+      setEditorBusy(false);
+    }
+  }
+
+  const visibleProjects = projects.filter((project) => {
+    const role = String(project.authorRole || "admin").trim().toLowerCase();
+    if (projectFilter === "Members") {
+      return role === "member";
+    }
+    if (projectFilter === "By Admin") {
+      return role === "admin";
+    }
+    return true;
+  });
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -2202,10 +2452,18 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth
       />
       <main className="post-article production-projects-page">
         <article>
+          {auth.profile?.role === "admin" ? (
+            <ContentActionBar
+              title="Edit this page"
+              description="Update the hero copy and markdown for this work page."
+              actionLabel="Edit Page"
+              onClick={() => setEditorOpen(true)}
+            />
+          ) : null}
           <div className="meta">{page.meta}</div>
           {loading ? <section className="post-content"><p>Loading...</p></section> : null}
           {error ? <section className="post-content"><p>Error loading content.</p></section> : null}
-          {!loading && !error ? <MarkdownContent markdown={data} /> : null}
+          {!loading && !error ? <MarkdownContent markdown={managedPage?.markdown || data} /> : null}
           <TransitionLink href={page.ctaHref}>
             <button className="call-to-blog-button">{page.ctaLabel}</button>
           </TransitionLink>
@@ -2222,12 +2480,32 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth
         </article>
         {production ? (
           <section className="production-projects-section" aria-label="Featured production projects">
+            {canManageContent(auth, "projects") ? (
+              <ContentActionBar
+                title="Production project requests"
+                description="Admins publish projects immediately. Members can submit projects for review."
+                actionLabel="New Project"
+                onClick={() => setProjectEditorOpen(true)}
+              />
+            ) : null}
             <h2 className="production-projects-heading">Featured Projects</h2>
             <p className="production-projects-subtitle">
               Each card opens the README and repository files in your browser static frontend only, no backend server.
             </p>
+            <div className="content-filter-bar" aria-label="Production project filters">
+              {["All", "Members", "By Admin"].map((label) => (
+                <button
+                  key={label}
+                  type="button"
+                  className={`content-filter-btn${projectFilter === label ? " is-active" : ""}`}
+                  onClick={() => setProjectFilter(label)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="project-cards-grid">
-              {projects.map((project) => {
+              {visibleProjects.map((project) => {
                 const parsed = parseGithubUrl(project.github);
                 const repo = parsed ? repoSlug(parsed.owner, parsed.repo) : "";
 
@@ -2266,13 +2544,82 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth
           </section>
         ) : null}
       </main>
+      <ContentEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSubmit={handlePageEdit}
+        busy={editorBusy}
+        title="Edit Work Page"
+        initialValue={{
+          id: managedPage?.id || "",
+          section: "works",
+          title: page.heroTitle || "",
+          description: "",
+          category: managedPage?.category || "",
+          heroImage: page.heroImage || "",
+          meta: page.meta || "",
+          readTime: "",
+          markdown: managedPage?.markdown || data || "",
+          documentTitle: page.documentTitle || "",
+          ctaLabel: page.ctaLabel || "",
+          ctaHref: page.ctaHref || "",
+          targetSlug: slug,
+          requestKind: "edit",
+        }}
+      />
+      <ContentEditorModal
+        open={projectEditorOpen}
+        onClose={() => setProjectEditorOpen(false)}
+        onSubmit={handleProjectCreate}
+        busy={editorBusy}
+        title="Create Project Request"
+        initialValue={{
+          section: "projects",
+          title: "",
+          description: "",
+          category: "General",
+          heroImage: "",
+          meta: "",
+          githubUrl: "",
+          markdown: "",
+        }}
+      />
     </Shell>
   );
 }
 
-function AboutPage({ siteData, auth }) {
+function AboutPage({ siteData, auth, content }) {
+  const managedPage = resolvePageManagedEntry("about", "about", content);
   const { data, error, loading } = useText(siteData.about.markdownPath);
-  usePageSetup(siteData.about.documentTitle);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const aboutData = {
+    ...siteData.about,
+    documentTitle: managedPage?.documentTitle || siteData.about.documentTitle,
+    ctaLabel: managedPage?.ctaLabel || siteData.about.ctaLabel,
+    ctaHref: managedPage?.ctaHref || siteData.about.ctaHref,
+  };
+  usePageSetup(aboutData.documentTitle);
+
+  async function handleAboutEdit(form) {
+    setEditorBusy(true);
+    try {
+      const response = await submitContentRequest({
+        ...form,
+        section: "about",
+        contentType: "page",
+        targetSlug: "about",
+        requestKind: "edit",
+      });
+      await content.refresh();
+      auth.setNotice(response?.message || "About page updated.");
+      setEditorOpen(false);
+    } catch (submitError) {
+      auth.setError(submitError.message || "Could not submit the about page update.");
+    } finally {
+      setEditorBusy(false);
+    }
+  }
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -2282,15 +2629,45 @@ function AboutPage({ siteData, auth }) {
       />
       <main className="post-article">
         <article>
+          {auth.profile?.role === "admin" ? (
+            <ContentActionBar
+              title="Edit about page"
+              description="Update your about page in markdown."
+              actionLabel="Edit Page"
+              onClick={() => setEditorOpen(true)}
+            />
+          ) : null}
           {loading ? <section className="post-content"><p>Loading...</p></section> : null}
           {error ? <section className="post-content"><p>Error loading content.</p></section> : null}
-          {!loading && !error ? <MarkdownContent markdown={data} /> : null}
+          {!loading && !error ? <MarkdownContent markdown={managedPage?.markdown || data} /> : null}
         </article>
-        <TransitionLink href={siteData.about.ctaHref}>
-          <button className="call-to-blog-button">{siteData.about.ctaLabel}</button>
+        <TransitionLink href={aboutData.ctaHref}>
+          <button className="call-to-blog-button">{aboutData.ctaLabel}</button>
         </TransitionLink>
       </main>
       <Gallery items={siteData.about.gallery} />
+      <ContentEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSubmit={handleAboutEdit}
+        busy={editorBusy}
+        title="Edit About Page"
+        initialValue={{
+          id: managedPage?.id || "",
+          section: "about",
+          title: "About",
+          description: "",
+          category: managedPage?.category || "",
+          heroImage: "",
+          meta: "",
+          markdown: managedPage?.markdown || data || "",
+          documentTitle: aboutData.documentTitle || "",
+          ctaLabel: aboutData.ctaLabel || "",
+          ctaHref: aboutData.ctaHref || "",
+          targetSlug: "about",
+          requestKind: "edit",
+        }}
+      />
     </Shell>
   );
 }
@@ -2350,15 +2727,32 @@ function DonatePage({ siteData, auth }) {
   );
 }
 
-function BlogListPage({ siteData, engagement, auth }) {
+function BlogListPage({ siteData, engagement, auth, content }) {
   const { data, error, loading } = useJson("/BlogPosts/posts.json");
   const [search, setSearch] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("All");
   const navigateWithTransition = useTransitionNavigate();
   usePageSetup(siteData.blogs.documentTitle, "home-page");
 
-  const posts = Array.isArray(data) ? [...data].reverse() : [];
+  const posts = mergeBlogPosts(
+    Array.isArray(data)
+      ? [...data].reverse().map((post) => ({
+          ...post,
+          category: post.category || "General",
+          authorRole: "admin",
+        }))
+      : [],
+    content
+  );
+  const categories = ["All", ...new Set(posts.map((post) => String(post.category || "General").trim() || "General"))];
   const filteredPosts = posts.filter((post) => {
     const term = search.toLowerCase().trim();
+    const matchesCategory = activeCategory === "All" || String(post.category || "General") === activeCategory;
+    if (!matchesCategory) {
+      return false;
+    }
     if (!term) {
       return true;
     }
@@ -2370,9 +2764,37 @@ function BlogListPage({ siteData, engagement, auth }) {
     );
   });
 
+  async function handleCreatePost(form) {
+    setEditorBusy(true);
+    try {
+      const response = await submitContentRequest({
+        ...form,
+        section: "writings",
+        contentType: "blog",
+      });
+      await content.refresh();
+      auth.setNotice(response?.message || "Post request submitted.");
+      setEditorOpen(false);
+    } catch (submitError) {
+      auth.setError(submitError.message || "Could not submit the post.");
+    } finally {
+      setEditorBusy(false);
+    }
+  }
+
   return (
     <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml={siteData.blogs.heroTitleHtml} />
+      {canManageContent(auth, "writings") ? (
+        <section className="post-article">
+          <ContentActionBar
+            title="New Writing"
+            description="Admins publish immediately. Members can send a writing request for approval."
+            actionLabel="New Post"
+            onClick={() => setEditorOpen(true)}
+          />
+        </section>
+      ) : null}
       <div className="blog-search-container">
         <input
           type="text"
@@ -2385,6 +2807,18 @@ function BlogListPage({ siteData, engagement, auth }) {
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
+      </div>
+      <div className="content-filter-bar" aria-label="Writing categories">
+        {categories.map((category) => (
+          <button
+            key={category}
+            type="button"
+            className={`content-filter-btn${activeCategory === category ? " is-active" : ""}`}
+            onClick={() => setActiveCategory(category)}
+          >
+            {category}
+          </button>
+        ))}
       </div>
       <section className="home-blog-grid" id="blog-grid">
         {loading ? <p>Loading...</p> : null}
@@ -2423,19 +2857,40 @@ function BlogListPage({ siteData, engagement, auth }) {
             ))
           : null}
       </section>
+      <ContentEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSubmit={handleCreatePost}
+        busy={editorBusy}
+        title="Write a New Post"
+        initialValue={{
+          section: "writings",
+          title: "",
+          description: "",
+          category: "General",
+          heroImage: "",
+          meta: "",
+          readTime: "",
+          markdown: "",
+        }}
+      />
     </Shell>
   );
 }
 
-function BlogDetailPage({ siteData, engagement, auth }) {
+function BlogDetailPage({ siteData, engagement, auth, content }) {
   const location = useLocation();
   const { blogId: blogIdParam } = useParams();
   const blogId = blogIdParam || new URLSearchParams(location.search).get("blog");
   const { data: posts } = useJson("/BlogPosts/posts.json");
   const [markdown, setMarkdown] = useState("");
   const [error, setError] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorBusy, setEditorBusy] = useState(false);
 
-  const post = Array.isArray(posts) ? posts.find((item) => item.id === blogId) : null;
+  const mergedPosts = mergeBlogPosts(Array.isArray(posts) ? posts : [], content);
+  const post = Array.isArray(mergedPosts) ? mergedPosts.find((item) => item.id === blogId) : null;
+  const managedEntry = resolveBlogManagedEntry(blogId, content);
   usePageSetup(post ? `${post.title} | Dexteritycoder` : "Writings | Dexteritycoder", "post-page");
   useViewTracker(engagement, "blog", blogId);
 
@@ -2445,6 +2900,12 @@ function BlogDetailPage({ siteData, engagement, auth }) {
     async function load() {
       if (!blogId) {
         setError(new Error("Writing not found"));
+        return;
+      }
+
+      if (managedEntry?.markdown) {
+        setMarkdown(managedEntry.markdown);
+        setError(null);
         return;
       }
 
@@ -2470,7 +2931,27 @@ function BlogDetailPage({ siteData, engagement, auth }) {
     return () => {
       active = false;
     };
-  }, [blogId]);
+  }, [blogId, managedEntry?.markdown]);
+
+  async function handleEditPost(form) {
+    setEditorBusy(true);
+    try {
+      const response = await submitContentRequest({
+        ...form,
+        section: "writings",
+        contentType: "blog",
+        targetSlug: slugifyValue(blogId),
+        requestKind: "edit",
+      });
+      await content.refresh();
+      auth.setNotice(response?.message || "Post update submitted.");
+      setEditorOpen(false);
+    } catch (submitError) {
+      auth.setError(submitError.message || "Could not submit the update.");
+    } finally {
+      setEditorBusy(false);
+    }
+  }
 
   const heroHtml = post ? post.title : "Writing Not Found";
 
@@ -2484,6 +2965,14 @@ function BlogDetailPage({ siteData, engagement, auth }) {
       />
       <main className="post-article">
         <article>
+          {canManageContent(auth, "writings") ? (
+            <ContentActionBar
+              title="Edit this writing"
+              description="Publish or request changes to this writing in markdown."
+              actionLabel="Edit Post"
+              onClick={() => setEditorOpen(true)}
+            />
+          ) : null}
           <div className="meta" id="blog-meta">
             {post ? `${post.author} · ${post.date} · ${post.readTime}` : "Loading..."}
           </div>
@@ -2506,6 +2995,26 @@ function BlogDetailPage({ siteData, engagement, auth }) {
           ) : null}
         </article>
       </main>
+      <ContentEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSubmit={handleEditPost}
+        busy={editorBusy}
+        title="Edit Writing"
+        initialValue={{
+          id: managedEntry?.id || "",
+          section: "writings",
+          title: post?.title || "",
+          description: post?.description || "",
+          category: post?.category || "General",
+          heroImage: post?.image || "",
+          meta: "",
+          readTime: post?.readTime || "",
+          markdown: managedEntry?.markdown || markdown || "",
+          targetSlug: slugifyValue(blogId),
+          requestKind: "edit",
+        }}
+      />
     </Shell>
   );
 }
@@ -2565,7 +3074,7 @@ function FileIcon() {
   );
 }
 
-function ProjectDetailPage({ siteData, engagement, auth }) {
+function ProjectDetailPage({ siteData, engagement, auth, content }) {
   const location = useLocation();
   const { owner: ownerParam, repo: repoParam } = useParams();
   const repoQuery =
@@ -2607,14 +3116,14 @@ function ProjectDetailPage({ siteData, engagement, auth }) {
           throw new Error("Invalid repository path. Use owner/repo.");
         }
 
-        const projects = normalizeData(await loadProjectsFromJson());
+        const projects = mergeProjects(normalizeData(await loadProjectsFromJson()), content);
         const project = projects.find((item) => {
           const parsed = parseGithubUrl(item.github);
           return parsed && repoSlug(parsed.owner, parsed.repo).toLowerCase() === repoSlug(owner, repo).toLowerCase();
         }) || null;
 
         const repoData = await loadRepoProject(owner, repo);
-        const docsMarkdown = project ? await loadProjectDocumentation(project) : null;
+        const docsMarkdown = project?.docsMarkdown || (project ? await loadProjectDocumentation(project) : null);
         const fileHtml = `<div class="post-content repo-markdown">${markdownToHtml(
           rewriteReadmeAssets(repoData.readmeMarkdown, owner, repo, repoData.branch)
         )}</div>`;
@@ -2808,6 +3317,136 @@ function LoadingScreen() {
     <main className="post-article">
       <p>Loading...</p>
     </main>
+  );
+}
+
+function ContentActionBar({ title, description, actionLabel, onClick }) {
+  return (
+    <div className="content-action-bar">
+      <div>
+        <strong>{title}</strong>
+        <p>{description}</p>
+      </div>
+      <button type="button" className="engagement-submit-btn" onClick={onClick}>
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
+function ContentEditorModal({ initialValue, open, onClose, onSubmit, busy, title }) {
+  const [form, setForm] = useState(initialValue);
+
+  useEffect(() => {
+    setForm(initialValue);
+  }, [initialValue]);
+
+  if (!open) {
+    return null;
+  }
+
+  function updateField(name, value) {
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    await onSubmit(form);
+  }
+
+  return (
+    <div className="auth-modal-backdrop" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="auth-modal-card cms-modal-card">
+        <h2>{title}</h2>
+        <form className="auth-form cms-form" onSubmit={handleSubmit}>
+          <input
+            type="text"
+            placeholder="Title"
+            value={form.title || ""}
+            onChange={(event) => updateField("title", event.target.value)}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Category"
+            value={form.category || ""}
+            onChange={(event) => updateField("category", event.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Short description"
+            value={form.description || ""}
+            onChange={(event) => updateField("description", event.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Hero image URL"
+            value={form.heroImage || ""}
+            onChange={(event) => updateField("heroImage", event.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Meta line"
+            value={form.meta || ""}
+            onChange={(event) => updateField("meta", event.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Read time"
+            value={form.readTime || ""}
+            onChange={(event) => updateField("readTime", event.target.value)}
+          />
+          {form.section === "projects" ? (
+            <input
+              type="url"
+              placeholder="GitHub URL"
+              value={form.githubUrl || ""}
+              onChange={(event) => updateField("githubUrl", event.target.value)}
+            />
+          ) : null}
+          {(form.section === "works" || form.section === "about") ? (
+            <>
+              <input
+                type="text"
+                placeholder="Document title"
+                value={form.documentTitle || ""}
+                onChange={(event) => updateField("documentTitle", event.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="CTA label"
+                value={form.ctaLabel || ""}
+                onChange={(event) => updateField("ctaLabel", event.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="CTA href"
+                value={form.ctaHref || ""}
+                onChange={(event) => updateField("ctaHref", event.target.value)}
+              />
+            </>
+          ) : null}
+          <textarea
+            rows="16"
+            placeholder="Write in markdown..."
+            value={form.markdown || ""}
+            onChange={(event) => updateField("markdown", event.target.value)}
+            required
+          ></textarea>
+          <div className="auth-modal-actions">
+            <button type="submit" className="engagement-submit-btn" disabled={busy}>
+              {busy ? "Saving..." : "Submit"}
+            </button>
+            <button type="button" className="engagement-submit-btn" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -3155,7 +3794,130 @@ function AdminAccessPanel({
   );
 }
 
-function AccountPage({ siteData, auth }) {
+function ContentPreviewModal({ item, open, onClose, onApprove, onReject, busy }) {
+  if (!open || !item) {
+    return null;
+  }
+
+  return (
+    <div className="auth-modal-backdrop" role="dialog" aria-modal="true" aria-label="Content preview">
+      <div className="auth-modal-card cms-modal-card">
+        <h2>{item.title}</h2>
+        <p className="auth-account-meta">{item.section} · {item.status}</p>
+        <div className="post-content cms-preview-scroll">
+          <pre className="cms-preview-markdown">{item.markdown}</pre>
+        </div>
+        <div className="auth-modal-actions">
+          <button type="button" className="engagement-submit-btn" onClick={onApprove} disabled={busy}>
+            {busy ? "Working..." : "Approve"}
+          </button>
+          <button type="button" className="engagement-like-btn" onClick={onReject} disabled={busy}>
+            Reject
+          </button>
+          <button type="button" className="engagement-like-btn" onClick={onClose} disabled={busy}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminDashboardPanel({ dashboard, loading, error, onReviewComment, onReviewContent, busyKey }) {
+  const [previewItem, setPreviewItem] = useState(null);
+  const counts = deriveDashboardCounts(dashboard);
+
+  return (
+    <section className="auth-card auth-admin-panel">
+      <h2>Admin Dashboard</h2>
+      <div className="auth-account-grid">
+        <div>
+          <strong>Role requests</strong>
+          <p>{counts.roleRequests}</p>
+        </div>
+        <div>
+          <strong>Pending comments</strong>
+          <p>{counts.comments}</p>
+        </div>
+        <div>
+          <strong>Content requests</strong>
+          <p>{counts.content}</p>
+        </div>
+      </div>
+      {error ? <p className="engagement-error">{error}</p> : null}
+      {loading ? <p>Loading dashboard...</p> : null}
+      {!loading ? (
+        <div className="auth-admin-list">
+          <article className="auth-admin-item auth-admin-item-stack">
+            <div>
+              <strong>Admin Requests</strong>
+              <p>People asking to become admins.</p>
+            </div>
+            <div className="cms-dashboard-list">
+              {(dashboard?.roleRequests || []).map((entry) => (
+                <div key={entry.userId} className="cms-dashboard-card">
+                  <strong>{entry.displayName}</strong>
+                  <p>{entry.email}</p>
+                </div>
+              ))}
+              {(dashboard?.roleRequests || []).length === 0 ? <p>No pending admin requests.</p> : null}
+            </div>
+          </article>
+          <article className="auth-admin-item auth-admin-item-stack">
+            <div>
+              <strong>Comment Moderation</strong>
+              <p>Approve or reject public comments.</p>
+            </div>
+            <div className="cms-dashboard-list">
+              {(dashboard?.comments || []).map((entry) => (
+                <div key={entry.id} className="cms-dashboard-card">
+                  <strong>{entry.authorName} on {entry.entityType}:{entry.entityId}</strong>
+                  <p>{entry.message}</p>
+                  <p>Status: {entry.status}</p>
+                  <div className="cms-inline-actions">
+                    <button type="button" className="engagement-submit-btn" disabled={busyKey === `comment:${entry.id}`} onClick={() => onReviewComment(entry.id, "approved")}>Approve</button>
+                    <button type="button" className="engagement-like-btn" disabled={busyKey === `comment:${entry.id}`} onClick={() => onReviewComment(entry.id, "rejected")}>Reject</button>
+                  </div>
+                </div>
+              ))}
+              {(dashboard?.comments || []).length === 0 ? <p>No comments found.</p> : null}
+            </div>
+          </article>
+          <article className="auth-admin-item auth-admin-item-stack">
+            <div>
+              <strong>Content Requests</strong>
+              <p>Preview posts, projects, and page edits before publishing.</p>
+            </div>
+            <div className="cms-dashboard-list">
+              {(dashboard?.allContent || []).map((entry) => (
+                <div key={entry.id} className="cms-dashboard-card">
+                  <strong>{entry.title}</strong>
+                  <p>{entry.section} · {entry.requestKind} · {entry.status}</p>
+                  <div className="cms-inline-actions">
+                    <button type="button" className="engagement-submit-btn" onClick={() => setPreviewItem(entry)}>Preview</button>
+                    <button type="button" className="engagement-submit-btn" disabled={busyKey === `content:${entry.id}`} onClick={() => onReviewContent(entry.id, "approved")}>Approve</button>
+                    <button type="button" className="engagement-like-btn" disabled={busyKey === `content:${entry.id}`} onClick={() => onReviewContent(entry.id, "rejected")}>Reject</button>
+                  </div>
+                </div>
+              ))}
+              {(dashboard?.allContent || []).length === 0 ? <p>No content requests yet.</p> : null}
+            </div>
+          </article>
+        </div>
+      ) : null}
+      <ContentPreviewModal
+        item={previewItem}
+        open={Boolean(previewItem)}
+        onClose={() => setPreviewItem(null)}
+        onApprove={() => previewItem ? onReviewContent(previewItem.id, "approved").then(() => setPreviewItem(null)) : null}
+        onReject={() => previewItem ? onReviewContent(previewItem.id, "rejected").then(() => setPreviewItem(null)) : null}
+        busy={busyKey === `content:${previewItem?.id || ""}`}
+      />
+    </section>
+  );
+}
+
+function AccountPage({ siteData, auth, content }) {
   usePageSetup("Account | Dexteritycoder", "post-page");
 
   const profile = auth.profile || {
@@ -3169,6 +3931,8 @@ function AccountPage({ siteData, auth }) {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState("");
   const [savingUserId, setSavingUserId] = useState("");
+  const [dashboard, setDashboard] = useState(null);
+  const [dashboardBusyKey, setDashboardBusyKey] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -3176,6 +3940,7 @@ function AccountPage({ siteData, auth }) {
     async function loadAdminProfiles() {
       if (!auth.user || profile.role !== "admin") {
         setManagedProfiles([]);
+        setDashboard(null);
         setAdminError("");
         setAdminLoading(false);
         return;
@@ -3183,11 +3948,15 @@ function AccountPage({ siteData, auth }) {
 
       setAdminLoading(true);
       try {
-        const profiles = await fetchAdminProfiles();
+        const [profiles, dashboardData] = await Promise.all([
+          fetchAdminProfiles(),
+          fetchAdminDashboard(),
+        ]);
         if (!active) {
           return;
         }
         setManagedProfiles(Array.isArray(profiles) ? profiles : []);
+        setDashboard(dashboardData || null);
         setAdminError("");
       } catch (loadError) {
         if (!active) {
@@ -3260,6 +4029,40 @@ function AccountPage({ siteData, auth }) {
     }
   }
 
+  async function handleReviewComment(commentId, status) {
+    setDashboardBusyKey(`comment:${commentId}`);
+    setAdminError("");
+
+    try {
+      await reviewCommentRequest({ commentId, status });
+      const dashboardData = await fetchAdminDashboard();
+      setDashboard(dashboardData || null);
+      await auth.refreshProfile().catch(() => null);
+      auth.setNotice("Comment moderation updated.");
+    } catch (updateError) {
+      setAdminError(updateError.message || "Could not moderate that comment.");
+    } finally {
+      setDashboardBusyKey("");
+    }
+  }
+
+  async function handleReviewContent(id, status) {
+    setDashboardBusyKey(`content:${id}`);
+    setAdminError("");
+
+    try {
+      await reviewContentRequest({ id, status });
+      const dashboardData = await fetchAdminDashboard();
+      setDashboard(dashboardData || null);
+      await content.refresh();
+      auth.setNotice("Content review updated.");
+    } catch (updateError) {
+      setAdminError(updateError.message || "Could not review that content.");
+    } finally {
+      setDashboardBusyKey("");
+    }
+  }
+
   return (
     <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml="<b>YOUR</b> ACCOUNT" />
@@ -3289,14 +4092,24 @@ function AccountPage({ siteData, auth }) {
           </button>
         </section>
         {profile.role === "admin" ? (
-          <AdminAccessPanel
-            currentAdminId={profile.userId}
-            error={adminError}
-            loading={adminLoading}
-            profiles={managedProfiles}
-            savingUserId={savingUserId}
-            onChangeRole={handleRoleChange}
-          />
+          <>
+            <AdminDashboardPanel
+              dashboard={dashboard}
+              loading={adminLoading}
+              error={adminError}
+              onReviewComment={handleReviewComment}
+              onReviewContent={handleReviewContent}
+              busyKey={dashboardBusyKey}
+            />
+            <AdminAccessPanel
+              currentAdminId={profile.userId}
+              error={adminError}
+              loading={adminLoading}
+              profiles={managedProfiles}
+              savingUserId={savingUserId}
+              onChangeRole={handleRoleChange}
+            />
+          </>
         ) : null}
       </main>
     </Shell>
@@ -3317,27 +4130,27 @@ function LegacyWritingRedirect() {
   return <Navigate to={`/writings/${encodeURIComponent(blogId || "")}`} replace />;
 }
 
-function AppRoutes({ siteData, engagement, auth }) {
+function AppRoutes({ siteData, engagement, auth, content }) {
   return (
     <Routes>
       <Route path="/" element={<HomePage siteData={siteData} engagement={engagement} auth={auth} />} />
       <Route path="/index.html" element={<Navigate to="/" replace />} />
       <Route path="/works" element={<WorksPage siteData={siteData} engagement={engagement} auth={auth} />} />
-      <Route path="/production-projects" element={<WorkMarkdownPage siteData={siteData} slug="production-projects" production engagement={engagement} auth={auth} />} />
-      <Route path="/ai-machine-learning" element={<WorkMarkdownPage siteData={siteData} slug="ai-machine-learning" engagement={engagement} auth={auth} />} />
-      <Route path="/train-to-thoughts" element={<WorkMarkdownPage siteData={siteData} slug="train-to-thoughts" engagement={engagement} auth={auth} />} />
-      <Route path="/available-for-freelancing" element={<WorkMarkdownPage siteData={siteData} slug="available-for-freelancing" engagement={engagement} auth={auth} />} />
-      <Route path="/about" element={<AboutPage siteData={siteData} auth={auth} />} />
+      <Route path="/production-projects" element={<WorkMarkdownPage siteData={siteData} slug="production-projects" production engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/ai-machine-learning" element={<WorkMarkdownPage siteData={siteData} slug="ai-machine-learning" engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/train-to-thoughts" element={<WorkMarkdownPage siteData={siteData} slug="train-to-thoughts" engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/available-for-freelancing" element={<WorkMarkdownPage siteData={siteData} slug="available-for-freelancing" engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/about" element={<AboutPage siteData={siteData} auth={auth} content={content} />} />
       <Route path="/contact" element={<ContactPage siteData={siteData} auth={auth} />} />
       <Route path="/donate" element={<DonatePage siteData={siteData} auth={auth} />} />
-      <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} auth={auth} />} />
-      <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/auth" element={<AuthPage siteData={siteData} auth={auth} />} />
       <Route path="/auth/callback" element={<AuthCallbackPage siteData={siteData} auth={auth} />} />
-      <Route path="/account" element={<AccountPage siteData={siteData} auth={auth} />} />
+      <Route path="/account" element={<AccountPage siteData={siteData} auth={auth} content={content} />} />
       <Route path="/blog" element={<Navigate to="/writings" replace />} />
       <Route path="/blog/:blogId" element={<LegacyWritingRedirect />} />
-      <Route path="/project/:owner/:repo" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/project/:owner/:repo" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/pages/blog.html" element={<Navigate to="/writings" replace />} />
       <Route path="/pages/production-projects.html" element={<Navigate to="/production-projects" replace />} />
       <Route path="/pages/ai-machine-learning.html" element={<Navigate to="/ai-machine-learning" replace />} />
@@ -3347,8 +4160,8 @@ function AppRoutes({ siteData, engagement, auth }) {
       <Route path="/pages/contact.html" element={<Navigate to="/contact" replace />} />
       <Route path="/pages/donate.html" element={<Navigate to="/donate" replace />} />
       <Route path="/Blogs/blog-list.html" element={<Navigate to="/writings" replace />} />
-      <Route path="/Blogs/blog-detail.html" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
-      <Route path="/pages/project-detail.html" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/Blogs/blog-detail.html" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/pages/project-detail.html" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/pages/post1.html" element={<Navigate to="/production-projects" replace />} />
       <Route path="/pages/post2.html" element={<Navigate to="/ai-machine-learning" replace />} />
       <Route path="/pages/post3.html" element={<Navigate to="/train-to-thoughts" replace />} />
@@ -3362,6 +4175,7 @@ export default function App() {
   const { data, error, loading } = useJson("/data/site-content.json");
   const auth = useSupabaseAuth();
   const engagement = useEngagement(auth);
+  const content = useManagedContent();
 
   if (loading) {
     return <LoadingScreen />;
@@ -3377,7 +4191,7 @@ export default function App() {
 
   return (
     <>
-      <AppRoutes siteData={data} engagement={engagement} auth={auth} />
+      <AppRoutes siteData={data} engagement={engagement} auth={auth} content={content} />
       <AuthPromptModal message={auth.promptMessage} onClose={auth.closeAuthPrompt} />
     </>
   );

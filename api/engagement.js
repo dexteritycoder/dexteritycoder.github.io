@@ -2,7 +2,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { Pool } = require("pg");
 const { get, put, BlobNotFoundError } = require("@vercel/blob");
-const { deriveDisplayName, requireSupabaseUser } = require("./_supabaseAuth");
+const { deriveDisplayName, requireSupabaseUser, resolveAssignedRole } = require("./_supabaseAuth");
 
 const COMMENTS_PATH = "data/engagement/comments.json";
 const LIKES_PATH = "data/engagement/likes.json";
@@ -278,6 +278,7 @@ async function handleCreateCommentInFiles(body, authUser) {
   const authorName = deriveDisplayName(authUser, cleanOptional(body.authorName, 80));
   const authorEmail = cleanOptional(authUser?.email, 160);
   const message = cleanRequired(body.message, "Comment is required.", 2000);
+  const status = resolveCommentStatus(authUser);
   const commentsState = await loadCommentStateFromFile();
   const key = buildEntityKey(entityType, entityId);
   const entity = ensureEntityRecord(commentsState.entities, key);
@@ -288,6 +289,9 @@ async function handleCreateCommentInFiles(body, authUser) {
     authorName,
     authorEmail,
     message,
+    status,
+    reviewedByUserId: status === "approved" ? actorId : "",
+    reviewedAt: status === "approved" ? new Date().toISOString() : "",
     createdAt: new Date().toISOString(),
   });
 
@@ -370,6 +374,7 @@ async function handleCreateCommentInBlob(body, authUser) {
   const authorName = deriveDisplayName(authUser, cleanOptional(body.authorName, 80));
   const authorEmail = cleanOptional(authUser?.email, 160);
   const message = cleanRequired(body.message, "Comment is required.", 2000);
+  const status = resolveCommentStatus(authUser);
   const commentsState = await loadCommentStateFromBlob();
   const key = buildEntityKey(entityType, entityId);
   const entity = ensureEntityRecord(commentsState.entities, key);
@@ -380,6 +385,9 @@ async function handleCreateCommentInBlob(body, authUser) {
     authorName,
     authorEmail,
     message,
+    status,
+    reviewedByUserId: status === "approved" ? actorId : "",
+    reviewedAt: status === "approved" ? new Date().toISOString() : "",
     createdAt: new Date().toISOString(),
   });
 
@@ -482,6 +490,7 @@ async function handleCreateCommentInDatabase(body, authUser) {
   const authorName = deriveDisplayName(authUser, cleanOptional(body.authorName, 80));
   const authorEmail = cleanOptional(authUser?.email, 160);
   const message = cleanRequired(body.message, "Comment is required.", 2000);
+  const status = resolveCommentStatus(authUser);
   const entityKey = buildEntityKey(entityType, entityId);
   const commentId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const client = await getPool().connect();
@@ -498,11 +507,14 @@ async function handleCreateCommentInDatabase(body, authUser) {
           author_name,
           author_email,
           message,
+          status,
+          reviewed_by_user_id,
+          reviewed_at,
           created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, NOW())
       `,
-      [commentId, entityKey, actorId, authorName, authorEmail, message]
+      [commentId, entityKey, actorId, authorName, authorEmail, message, status, status === "approved" ? actorId : "", status === "approved" ? new Date().toISOString() : null]
     );
     await client.query("UPDATE engagement_entities SET updated_at = NOW() WHERE entity_key = $1", [entityKey]);
     await client.query("COMMIT");
@@ -771,9 +783,16 @@ async function initializeDatabase() {
       author_name TEXT NOT NULL,
       author_email TEXT NOT NULL DEFAULT '',
       message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'approved',
+      reviewed_by_user_id TEXT NOT NULL DEFAULT '',
+      reviewed_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  await db.query(`ALTER TABLE engagement_comments ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved'`);
+  await db.query(`ALTER TABLE engagement_comments ADD COLUMN IF NOT EXISTS reviewed_by_user_id TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE engagement_comments ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`);
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS engagement_likes (
@@ -918,9 +937,12 @@ async function seedFromLegacyFiles() {
               author_name,
               author_email,
               message,
+              status,
+              reviewed_by_user_id,
+              reviewed_at,
               created_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10::timestamptz)
             ON CONFLICT (id) DO NOTHING
           `,
           [
@@ -930,6 +952,9 @@ async function seedFromLegacyFiles() {
             cleanOptional(entry.authorName, 160) || "Guest",
             cleanOptional(entry.authorEmail, 160),
             cleanRequired(entry.message, "Comment is required.", 2000),
+            normalizeCommentStatus(entry.status, "approved"),
+            cleanOptional(entry.reviewedByUserId || entry.actorId, 160),
+            normalizeTimestamp(entry.reviewedAt || entry.createdAt),
             normalizeTimestamp(entry.createdAt),
           ]
         );
@@ -980,7 +1005,7 @@ async function loadStateFromDatabase() {
       FROM engagement_entities
     `),
     db.query(`
-      SELECT id, entity_key, actor_id, author_name, author_email, message, created_at
+      SELECT id, entity_key, actor_id, author_name, author_email, message, status, reviewed_by_user_id, reviewed_at, created_at
       FROM engagement_comments
       ORDER BY created_at DESC
     `),
@@ -1029,6 +1054,9 @@ async function loadStateFromDatabase() {
       authorName: row.author_name,
       authorEmail: row.author_email,
       message: row.message,
+      status: normalizeCommentStatus(row.status, "approved"),
+      reviewedByUserId: row.reviewed_by_user_id || "",
+      reviewedAt: row.reviewed_at ? normalizeTimestamp(row.reviewed_at) : "",
       createdAt: normalizeTimestamp(row.created_at),
     });
   }
@@ -1043,6 +1071,89 @@ async function loadStateFromDatabase() {
   }
 
   return { commentsState, likesState, viewsState };
+}
+
+async function listCommentsForAdmin() {
+  const storage = getStorageMode();
+  const state = await loadStateByMode(storage);
+  return flattenCommentsState(state);
+}
+
+async function moderateCommentById({ commentId, status, reviewedByUserId }) {
+  const storage = getStorageMode();
+  const nextStatus = normalizeCommentStatus(status, "pending");
+  if (!commentId) {
+    throw createHttpError(400, "Comment ID is required.");
+  }
+
+  if (storage === "database") {
+    await ensureDatabaseReady();
+    const result = await getPool().query(
+      `
+        UPDATE engagement_comments
+        SET status = $2, reviewed_by_user_id = $3, reviewed_at = NOW()
+        WHERE id = $1
+        RETURNING id
+      `,
+      [String(commentId).trim(), nextStatus, cleanOptional(reviewedByUserId, 160)]
+    );
+    if (result.rowCount === 0) {
+      throw createHttpError(404, "Comment not found.");
+    }
+    return listCommentsForAdmin();
+  }
+
+  const loader = storage === "blob" ? loadCommentStateFromBlob : loadCommentStateFromFile;
+  const saver = storage === "blob" ? saveBlobCommentState : saveFileCommentState;
+  const commentsState = await loader();
+  let updated = false;
+
+  for (const entity of Object.values(commentsState.entities || {})) {
+    const entry = Array.isArray(entity.entries) ? entity.entries.find((item) => item.id === commentId) : null;
+    if (!entry) {
+      continue;
+    }
+    entry.status = nextStatus;
+    entry.reviewedByUserId = cleanOptional(reviewedByUserId, 160);
+    entry.reviewedAt = new Date().toISOString();
+    updated = true;
+    break;
+  }
+
+  if (!updated) {
+    throw createHttpError(404, "Comment not found.");
+  }
+
+  commentsState.updatedAt = new Date().toISOString();
+  await saver(commentsState);
+  return flattenCommentsState({ commentsState, likesState: { entities: {} }, viewsState: { entities: {} } });
+}
+
+function flattenCommentsState(state) {
+  const comments = [];
+  for (const [key, entity] of Object.entries(state?.commentsState?.entities || {})) {
+    const [entityType, ...entityIdParts] = String(key).split(":");
+    const entityId = entityIdParts.join(":");
+    for (const entry of entity.entries || []) {
+      comments.push({
+        entityKey: key,
+        entityType,
+        entityId,
+        ...entry,
+        status: normalizeCommentStatus(entry.status, "approved"),
+      });
+    }
+  }
+
+  return comments.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+async function saveFileCommentState(state) {
+  await saveDatasetToFile(COMMENTS_PATH, state);
+}
+
+async function saveBlobCommentState(state) {
+  await saveDatasetToBlob(COMMENTS_BLOB_PATH, state);
 }
 
 async function ensureEntityExists(client, entityKey, entityType, entityId) {
@@ -1236,11 +1347,12 @@ function buildStatsMap({ commentsState, likesState, viewsState }) {
     const commentEntity = ensureEntityRecord(commentsState.entities, key);
     const likeEntity = ensureEntityRecord(likesState.entities, key);
     const viewEntity = ensureCountEntityRecord(viewsState?.entities || {}, key);
+    const approvedComments = commentEntity.entries.filter((entry) => normalizeCommentStatus(entry.status, "approved") === "approved");
     stats[key] = {
       viewCount: Number(viewEntity.count || 0),
-      commentCount: Number(commentEntity.legacyCount || 0) + commentEntity.entries.length,
+      commentCount: Number(commentEntity.legacyCount || 0) + approvedComments.length,
       likeCount: Number(likeEntity.legacyCount || 0) + likeEntity.entries.length,
-      comments: [...commentEntity.entries].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+      comments: [...approvedComments].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
       likedBy: [...likeEntity.entries].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
     };
   }
@@ -1268,7 +1380,14 @@ function ensureDatasetShape(data) {
   for (const [key, value] of Object.entries(data?.entities || {})) {
     entities[key] = {
       legacyCount: Number(value?.legacyCount || 0),
-      entries: Array.isArray(value?.entries) ? value.entries : [],
+      entries: Array.isArray(value?.entries)
+        ? value.entries.map((entry) => ({
+            ...entry,
+            status: normalizeCommentStatus(entry?.status, "approved"),
+            reviewedByUserId: cleanOptional(entry?.reviewedByUserId, 160),
+            reviewedAt: entry?.reviewedAt ? normalizeTimestamp(entry.reviewedAt) : "",
+          }))
+        : [],
     };
   }
 
@@ -1434,6 +1553,19 @@ function normalizeTimestamp(value) {
   return date.toISOString();
 }
 
+function normalizeCommentStatus(value, fallback = "pending") {
+  const status = String(value || "").trim().toLowerCase();
+  if (status === "approved" || status === "rejected" || status === "pending") {
+    return status;
+  }
+  return fallback;
+}
+
+function resolveCommentStatus(authUser) {
+  const role = resolveAssignedRole(authUser?.email, authUser?.user_metadata?.requested_role);
+  return role === "admin" ? "approved" : "pending";
+}
+
 function sendJson(res, status, payload) {
   res.statusCode = status;
   res.end(JSON.stringify(payload));
@@ -1457,6 +1589,9 @@ function countStateEntities(state) {
   ]);
   return keys.size;
 }
+
+module.exports.listCommentsForAdmin = listCommentsForAdmin;
+module.exports.moderateCommentById = moderateCommentById;
 
 function createRequestId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

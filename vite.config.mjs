@@ -6,12 +6,20 @@ const require = createRequire(import.meta.url);
 const engagementHandler = require("./api/engagement.js");
 const accountHandler = require("./api/account.js");
 const authConfigHandler = require("./api/auth-config.js");
+const adminUsersHandler = require("./api/admin-users.js");
+const adminDashboardHandler = require("./api/admin-dashboard.js");
+const adminCommentsHandler = require("./api/admin-comments.js");
+const contentHandler = require("./api/content.js");
 
 function engagementApiPlugin() {
   const routes = new Map([
     ["/api/engagement", engagementHandler],
     ["/api/account", accountHandler],
     ["/api/auth-config", authConfigHandler],
+    ["/api/admin-users", adminUsersHandler],
+    ["/api/admin-dashboard", adminDashboardHandler],
+    ["/api/admin-comments", adminCommentsHandler],
+    ["/api/content", contentHandler],
   ]);
 
   async function runHandler(req, res, handler) {

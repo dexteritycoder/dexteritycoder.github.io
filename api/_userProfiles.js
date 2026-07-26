@@ -152,6 +152,31 @@ async function listUserProfiles() {
   return result.rows.map((row) => mapProfileRow(row));
 }
 
+async function listAdminRequests() {
+  const db = getPool();
+  const result = await db.query(
+    `
+      SELECT
+        user_id,
+        email,
+        display_name,
+        avatar_url,
+        role,
+        requested_role,
+        auth_provider,
+        newsletter_subscribed,
+        created_at,
+        updated_at
+      FROM user_profiles
+      WHERE requested_role = 'admin'
+        AND role <> 'admin'
+      ORDER BY updated_at DESC, created_at DESC
+    `
+  );
+
+  return result.rows.map((row) => mapProfileRow(row));
+}
+
 async function updateUserRole({ targetUserId, role }) {
   const db = getPool();
   const nextRole = normalizeRequestedRole(role);
@@ -224,6 +249,7 @@ function mapProfileRow(row) {
 module.exports = {
   ensureAccountSchema,
   getProfileByUserId,
+  listAdminRequests,
   listUserProfiles,
   saveUserProfile,
   updateUserRole,
