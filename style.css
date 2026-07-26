@@ -1624,6 +1624,33 @@ form p {
         box-shadow: 0 24px 50px rgba(0, 0, 0, 0.32);
     }
 
+    .nav-profile-item {
+        width: 100%;
+    }
+
+    .nav-profile-trigger {
+        width: 52px;
+        height: 52px;
+    }
+
+    .nav-profile-menu {
+        position: static;
+        top: auto;
+        right: auto;
+        width: 100%;
+        margin-top: 12px;
+        padding: 14px;
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+        display: none;
+    }
+
+    .nav-profile-item.is-open .nav-profile-menu,
+    .nav-profile-item:hover .nav-profile-menu {
+        display: grid;
+    }
+
     body.menu-open #rightnav {
         opacity: 1;
         transform: translateY(0);
