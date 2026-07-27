@@ -930,8 +930,12 @@ body.menu-open .line:nth-child(3) {
 }
 
 .auth-modal-card {
-    width: min(100%, 440px);
+    width: 95%;
+    max-width: calc(100vw - 48px);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
     padding: 24px;
+    box-sizing: border-box;
     border-radius: 24px;
     background: #111;
     border: 1px solid rgba(255, 255, 255, 0.08);
