@@ -3336,10 +3336,15 @@ function ContentActionBar({ title, description, actionLabel, onClick }) {
 
 function ContentEditorModal({ initialValue, open, onClose, onSubmit, busy, title }) {
   const [form, setForm] = useState(initialValue);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    setForm(initialValue);
-  }, [initialValue]);
+    if (open && !wasOpenRef.current) {
+      setForm(initialValue);
+    }
+
+    wasOpenRef.current = open;
+  }, [initialValue, open]);
 
   if (!open) {
     return null;

@@ -866,10 +866,19 @@ body.menu-open .line:nth-child(3) {
     max-height: 54vh;
     overflow: auto;
     border-radius: 18px;
+    box-sizing: border-box;
 }
 
 .cms-editor-textarea {
+    display: block;
+    width: 100%;
     resize: vertical;
+    padding: 1.1rem 1.15rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(10, 10, 10, 0.96);
+    color: #f7f7f7;
+    background-clip: padding-box;
 }
 
 .cms-editor-preview {
