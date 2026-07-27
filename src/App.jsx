@@ -3362,80 +3362,95 @@ function ContentEditorModal({ initialValue, open, onClose, onSubmit, busy, title
       <div className="auth-modal-card cms-modal-card">
         <h2>{title}</h2>
         <form className="auth-form cms-form" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Title"
-            value={form.title || ""}
-            onChange={(event) => updateField("title", event.target.value)}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Category"
-            value={form.category || ""}
-            onChange={(event) => updateField("category", event.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Short description"
-            value={form.description || ""}
-            onChange={(event) => updateField("description", event.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Hero image URL"
-            value={form.heroImage || ""}
-            onChange={(event) => updateField("heroImage", event.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Meta line"
-            value={form.meta || ""}
-            onChange={(event) => updateField("meta", event.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Read time"
-            value={form.readTime || ""}
-            onChange={(event) => updateField("readTime", event.target.value)}
-          />
-          {form.section === "projects" ? (
+          <div className="cms-form-grid">
             <input
-              type="url"
-              placeholder="GitHub URL"
-              value={form.githubUrl || ""}
-              onChange={(event) => updateField("githubUrl", event.target.value)}
+              type="text"
+              placeholder="Title"
+              value={form.title || ""}
+              onChange={(event) => updateField("title", event.target.value)}
+              required
             />
-          ) : null}
-          {(form.section === "works" || form.section === "about") ? (
-            <>
+            <input
+              type="text"
+              placeholder="Category"
+              value={form.category || ""}
+              onChange={(event) => updateField("category", event.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Short description"
+              value={form.description || ""}
+              onChange={(event) => updateField("description", event.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Hero image URL"
+              value={form.heroImage || ""}
+              onChange={(event) => updateField("heroImage", event.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Meta line"
+              value={form.meta || ""}
+              onChange={(event) => updateField("meta", event.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Read time"
+              value={form.readTime || ""}
+              onChange={(event) => updateField("readTime", event.target.value)}
+            />
+            {form.section === "projects" ? (
               <input
-                type="text"
-                placeholder="Document title"
-                value={form.documentTitle || ""}
-                onChange={(event) => updateField("documentTitle", event.target.value)}
+                type="url"
+                placeholder="GitHub URL"
+                value={form.githubUrl || ""}
+                onChange={(event) => updateField("githubUrl", event.target.value)}
               />
-              <input
-                type="text"
-                placeholder="CTA label"
-                value={form.ctaLabel || ""}
-                onChange={(event) => updateField("ctaLabel", event.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="CTA href"
-                value={form.ctaHref || ""}
-                onChange={(event) => updateField("ctaHref", event.target.value)}
-              />
-            </>
-          ) : null}
-          <textarea
-            rows="16"
-            placeholder="Write in markdown..."
-            value={form.markdown || ""}
-            onChange={(event) => updateField("markdown", event.target.value)}
-            required
-          ></textarea>
+            ) : null}
+            {(form.section === "works" || form.section === "about") ? (
+              <>
+                <input
+                  type="text"
+                  placeholder="Document title"
+                  value={form.documentTitle || ""}
+                  onChange={(event) => updateField("documentTitle", event.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="CTA label"
+                  value={form.ctaLabel || ""}
+                  onChange={(event) => updateField("ctaLabel", event.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="CTA href"
+                  value={form.ctaHref || ""}
+                  onChange={(event) => updateField("ctaHref", event.target.value)}
+                />
+              </>
+            ) : null}
+          </div>
+          <div className="cms-editor-layout">
+            <div className="cms-editor-panel">
+              <div className="cms-panel-label">Markdown</div>
+              <textarea
+                className="cms-editor-textarea"
+                rows="18"
+                placeholder="Write in markdown..."
+                value={form.markdown || ""}
+                onChange={(event) => updateField("markdown", event.target.value)}
+                required
+              ></textarea>
+            </div>
+            <div className="cms-editor-panel">
+              <div className="cms-panel-label">Live Preview</div>
+              <div
+                className="post-content cms-editor-preview"
+                dangerouslySetInnerHTML={{ __html: markdownToHtml(form.markdown || "") }}
+              ></div>
+            </div>
+          </div>
           <div className="auth-modal-actions">
             <button type="submit" className="engagement-submit-btn" disabled={busy}>
               {busy ? "Saving..." : "Submit"}
@@ -3619,7 +3634,7 @@ function AuthPage({ siteData, auth }) {
     <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml="<b>SIGN</b> UP / <b>LOG IN</b>" titleStyle={{ fontSize: "clamp(1.6rem, 1.4vw + 1rem, 2.4rem)" }} />
       <main className="auth-page-shell">
-        <section className="auth-card">
+        <section className="auth-card auth-profile-card">
           <div className="auth-mode-switch">
             <button type="button" className={mode === "signup" ? "is-active" : ""} onClick={() => setMode("signup")}>
               Sign Up
@@ -3804,9 +3819,10 @@ function ContentPreviewModal({ item, open, onClose, onApprove, onReject, busy })
       <div className="auth-modal-card cms-modal-card">
         <h2>{item.title}</h2>
         <p className="auth-account-meta">{item.section} · {item.status}</p>
-        <div className="post-content cms-preview-scroll">
-          <pre className="cms-preview-markdown">{item.markdown}</pre>
-        </div>
+        <div
+          className="post-content cms-preview-scroll"
+          dangerouslySetInnerHTML={{ __html: markdownToHtml(item.markdown || "") }}
+        ></div>
         <div className="auth-modal-actions">
           <button type="button" className="engagement-submit-btn" onClick={onApprove} disabled={busy}>
             {busy ? "Working..." : "Approve"}
@@ -4067,7 +4083,7 @@ function AccountPage({ siteData, auth, content }) {
     <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml="<b>YOUR</b> ACCOUNT" />
       <main className="auth-page-shell">
-        <section className="auth-card">
+        <section className="auth-card auth-profile-card">
           <h2>{profile.displayName}</h2>
           <p className="auth-account-meta">{profile.email}</p>
           <div className="auth-account-grid">

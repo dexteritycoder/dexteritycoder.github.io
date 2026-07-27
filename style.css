@@ -421,20 +421,29 @@ body.menu-open .line:nth-child(3) {
     width: var(--page-width);
     margin: 0 auto;
     padding: 36px 0 88px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 22px;
+    align-items: start;
 }
 
 .auth-card {
-    width: min(100%, 760px);
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
     padding: 28px;
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
     box-shadow: var(--surface-shadow);
+    align-self: start;
 }
 
 .auth-card h2 {
     margin-top: 0;
+}
+
+.auth-profile-card {
+    min-height: 100%;
 }
 
 .auth-mode-switch {
@@ -712,7 +721,8 @@ body.menu-open .line:nth-child(3) {
 
 .auth-dashboard-list {
     display: grid;
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
     margin-bottom: 18px;
 }
 
@@ -725,12 +735,12 @@ body.menu-open .line:nth-child(3) {
 }
 
 .auth-admin-panel {
-    width: min(100%, 860px);
+    width: 100%;
 }
 
 .auth-admin-list {
     display: grid;
-    gap: 14px;
+    gap: 18px;
     margin-top: 18px;
 }
 
@@ -811,13 +821,61 @@ body.menu-open .line:nth-child(3) {
 }
 
 .cms-modal-card {
-    width: min(100%, 760px);
-    max-height: 90vh;
+    width: min(70vw, 1120px);
+    max-height: 92vh;
     overflow: auto;
+    padding: 28px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+        rgba(10, 10, 10, 0.96);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 .cms-form {
+    gap: 18px;
+}
+
+.cms-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+}
+
+.cms-editor-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.cms-editor-panel {
+    display: grid;
+    gap: 10px;
+}
+
+.cms-panel-label {
+    font-size: 0.83rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.68);
+}
+
+.cms-editor-textarea,
+.cms-editor-preview {
+    min-height: 54vh;
+    max-height: 54vh;
+    overflow: auto;
+    border-radius: 18px;
+}
+
+.cms-editor-textarea {
+    resize: vertical;
+}
+
+.cms-editor-preview {
+    padding: 1.1rem 1.15rem;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .cms-dashboard-list {
@@ -845,8 +903,12 @@ body.menu-open .line:nth-child(3) {
 }
 
 .cms-preview-scroll {
-    max-height: 48vh;
+    max-height: 56vh;
     overflow: auto;
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .cms-preview-markdown {
@@ -893,6 +955,11 @@ body.menu-open .line:nth-child(3) {
         grid-template-columns: 1fr;
     }
 
+    .auth-page-shell,
+    .auth-dashboard-list {
+        grid-template-columns: 1fr;
+    }
+
     .auth-admin-item {
         grid-template-columns: 1fr;
     }
@@ -904,6 +971,22 @@ body.menu-open .line:nth-child(3) {
 
     .nav-profile-menu {
         right: -8px;
+    }
+
+    .cms-modal-card {
+        width: min(95vw, 95vw);
+        padding: 20px;
+    }
+
+    .cms-form-grid,
+    .cms-editor-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .cms-editor-textarea,
+    .cms-editor-preview {
+        min-height: 40vh;
+        max-height: 40vh;
     }
 }
 
