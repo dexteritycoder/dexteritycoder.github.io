@@ -418,7 +418,7 @@ body.menu-open .line:nth-child(3) {
 }
 
 .auth-page-shell {
-    width: var(--page-width);
+    width: 95%;
     margin: 0 auto;
     padding: 36px 0 88px;
     display: grid;
@@ -821,7 +821,7 @@ body.menu-open .line:nth-child(3) {
 }
 
 .cms-modal-card {
-    width: min(70vw, 1120px);
+    width: min(90%, 1120px);
     max-height: 92vh;
     overflow: auto;
     padding: 28px;
