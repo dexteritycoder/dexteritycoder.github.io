@@ -47,5 +47,4 @@ where:
 
 
 
-- Fix writing modal
-- Fix profile page by consistent margin between cards
+- Keep saving the text written in the modal (currently it automatically flushes after few seconds)

@@ -1246,7 +1246,7 @@ p {
 }
 
 .post-content {
-    margin-top: 22px;
+    margin-top: 0px;
     color: var(--primary-text);
     font-size: var(--font-md);
     line-height: 1.8;
