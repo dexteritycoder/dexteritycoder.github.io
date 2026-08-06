@@ -189,6 +189,111 @@ function buildProjectRoute(repo) {
   return `/project/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
 }
 
+function normalizePathname(pathname) {
+  if (!pathname || pathname === "/") {
+    return "/";
+  }
+
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
+function formatPathLabel(value) {
+  return String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function isNavItemActive(pathname, href) {
+  const currentPath = normalizePathname(pathname);
+  const targetPath = normalizePathname(href);
+
+  if (targetPath === "/") {
+    return currentPath === "/";
+  }
+
+  if (targetPath === "/works") {
+    return currentPath === "/works" || currentPath.startsWith("/project/") || currentPath === "/production-projects" || currentPath === "/ai-machine-learning" || currentPath === "/train-to-thoughts" || currentPath === "/available-for-freelancing";
+  }
+
+  if (targetPath === "/writings") {
+    return currentPath === "/writings" || currentPath.startsWith("/writings/");
+  }
+
+  return currentPath === targetPath;
+}
+
+function getNavStatus(pathname, siteData) {
+  const currentPath = normalizePathname(pathname);
+  const workPages = siteData?.works?.pages || {};
+  const directMatch = siteData?.navigation?.find((item) => normalizePathname(item.href) === currentPath);
+
+  if (directMatch) {
+    return {
+      eyebrow: "Current page",
+      trail: [{ label: formatPathLabel(directMatch.label) }],
+    };
+  }
+
+  if (currentPath.startsWith("/writings/")) {
+    const blogId = decodeURIComponent(currentPath.slice("/writings/".length));
+    return {
+      eyebrow: "Current page",
+      trail: [
+        { label: "Writings", href: "/writings" },
+        { label: formatPathLabel(blogId) || "Writing" },
+      ],
+    };
+  }
+
+  if (currentPath.startsWith("/project/")) {
+    const segments = currentPath.split("/");
+    const repo = decodeURIComponent(segments[3] || "");
+    return {
+      eyebrow: "Current page",
+      trail: [
+        { label: "Production Projects", href: "/production-projects" },
+        { label: formatPathLabel(repo) || "Project" },
+      ],
+    };
+  }
+
+  const workEntry = Object.entries(workPages).find(([slug]) => `/${slug}` === currentPath);
+  if (workEntry) {
+    return {
+      eyebrow: "Current page",
+      trail: [
+        { label: "Works", href: "/works" },
+        { label: workEntry[1]?.title || formatPathLabel(workEntry[0]) },
+      ],
+    };
+  }
+
+  if (currentPath === "/auth") {
+    return {
+      eyebrow: "Current page",
+      trail: [{ label: "Sign Up" }],
+    };
+  }
+
+  if (currentPath === "/auth/callback") {
+    return {
+      eyebrow: "Current page",
+      trail: [{ label: "Signing In" }],
+    };
+  }
+
+  if (currentPath === "/account") {
+    return {
+      eyebrow: "Current page",
+      trail: [{ label: "Account" }],
+    };
+  }
+
+  return null;
+}
+
 function slugifyValue(value) {
   return String(value || "")
     .trim()
@@ -1732,6 +1837,7 @@ function MinimalFooter({ footer }) {
 }
 
 function Navbar({ siteData, auth }) {
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileDraftName, setProfileDraftName] = useState("");
@@ -1742,6 +1848,12 @@ function Navbar({ siteData, auth }) {
   const [profileError, setProfileError] = useState("");
   const fileInputRef = useRef(null);
   const navigateWithTransition = useTransitionNavigate();
+  const navStatus = getNavStatus(location.pathname, siteData);
+  const navItems = siteData.navigation.map((item) => ({
+    ...item,
+    icon: getNavItemIcon(item.href),
+    active: isNavItemActive(location.pathname, item.href),
+  }));
 
   useEffect(() => {
     function handleEscape(event) {
@@ -1852,7 +1964,9 @@ function Navbar({ siteData, auth }) {
     <>
       <button
         className="ham"
-        aria-label="Open menu"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        aria-controls="rightnav"
         type="button"
         onClick={() => setMenuOpen((value) => !value)}
       >
@@ -1867,10 +1981,41 @@ function Navbar({ siteData, auth }) {
           </TransitionLink>
         </div>
         <div id="rightnav">
+          {navStatus ? (
+            <div className="nav-status" aria-label="Current location">
+              <span className="nav-status-label">{navStatus.eyebrow}</span>
+              <div className="nav-status-trail">
+                {navStatus.trail.map((item, index) => (
+                  item.href ? (
+                    <span className="nav-status-segment" key={`${item.label}-${item.href}`}>
+                      <TransitionLink href={item.href} className="nav-status-link" onClick={() => setMenuOpen(false)}>
+                        {item.label}
+                      </TransitionLink>
+                      {index < navStatus.trail.length - 1 ? <span className="nav-status-separator">/</span> : null}
+                    </span>
+                  ) : (
+                    <span className="nav-status-segment" key={`${item.label}-${index}`}>
+                      <span className="nav-status-current">{item.label}</span>
+                      {index < navStatus.trail.length - 1 ? <span className="nav-status-separator">/</span> : null}
+                    </span>
+                  )
+                ))}
+              </div>
+            </div>
+          ) : null}
           <ul id="rightnavul">
-            {siteData.navigation.map((item) => (
-              <TransitionLink key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
-                <li>{item.label}</li>
+            {navItems.map((item) => (
+              <TransitionLink
+                key={item.href}
+                href={item.href}
+                className={`nav-item-link${item.active ? " is-active" : ""}`}
+                aria-current={item.active ? "page" : undefined}
+                onClick={() => setMenuOpen(false)}
+              >
+                <li>
+                  <span className="nav-item-label">{formatPathLabel(item.label)}</span>
+                  <span className="nav-item-icon" aria-hidden="true">{item.icon}</span>
+                </li>
               </TransitionLink>
             ))}
             {auth.user ? (
@@ -1999,7 +2144,10 @@ function Navbar({ siteData, auth }) {
               </li>
             ) : (
               <TransitionLink href="/auth" className="nav-auth-cta" onClick={() => setMenuOpen(false)}>
-                <li>SIGN UP</li>
+                <li>
+                  <span className="nav-item-icon" aria-hidden="true">{getNavItemIcon("/auth")}</span>
+                  <span className="nav-item-label">Sign Up</span>
+                </li>
               </TransitionLink>
             )}
           </ul>
@@ -2208,6 +2356,67 @@ function Gallery({ items }) {
       ) : null}
     </>
   );
+}
+
+function getNavItemIcon(href) {
+  switch (href) {
+    case "/":
+      return <NavHomeIcon />;
+    case "/works":
+      return <NavWorkIcon />;
+    case "/writings":
+      return <NavWritingIcon />;
+    case "/donate":
+      return <NavDonateIcon />;
+    case "/contact":
+      return <NavContactIcon />;
+    case "/about":
+      return <NavAboutIcon />;
+    case "/auth":
+      return <NavUserIcon />;
+    default:
+      return <NavDotIcon />;
+  }
+}
+
+function NavIconFrame({ children }) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  );
+}
+
+function NavHomeIcon() {
+  return <NavIconFrame><path d="M3 10.5 12 3l9 7.5"></path><path d="M5.5 9.5V20h13V9.5"></path><path d="M9.5 20v-5.5h5V20"></path></NavIconFrame>;
+}
+
+function NavWorkIcon() {
+  return <NavIconFrame><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="M8 5V3.5h8V5"></path><path d="M3.5 10.5h17"></path></NavIconFrame>;
+}
+
+function NavWritingIcon() {
+  return <NavIconFrame><path d="M6 4.5h9l3 3V19.5H6z"></path><path d="M15 4.5v3h3"></path><path d="M9 12h6"></path><path d="M9 15.5h6"></path></NavIconFrame>;
+}
+
+function NavDonateIcon() {
+  return <NavIconFrame><path d="M12 20s-6.5-3.8-6.5-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 6.5 2.8C18.5 16.2 12 20 12 20Z"></path><path d="M12 6V4"></path></NavIconFrame>;
+}
+
+function NavContactIcon() {
+  return <NavIconFrame><path d="M4 6.5h16v11H4z"></path><path d="m4.5 7 7.5 6 7.5-6"></path></NavIconFrame>;
+}
+
+function NavAboutIcon() {
+  return <NavIconFrame><circle cx="12" cy="8" r="3"></circle><path d="M5.5 19c1.5-3 4-4.5 6.5-4.5S17 16 18.5 19"></path></NavIconFrame>;
+}
+
+function NavUserIcon() {
+  return <NavIconFrame><circle cx="12" cy="8" r="3"></circle><path d="M5.5 19c1.5-3 4-4.5 6.5-4.5S17 16 18.5 19"></path></NavIconFrame>;
+}
+
+function NavDotIcon() {
+  return <NavIconFrame><circle cx="12" cy="12" r="2.5"></circle></NavIconFrame>;
 }
 
 function getItemsPerView() {
