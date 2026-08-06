@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-26T12:27:44.381Z",
+  "updatedAt": "2026-08-06T05:25:09.558Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
       "count": 0
@@ -12,7 +12,7 @@
       "count": 0
     },
     "article:production-projects": {
-      "count": 1
+      "count": 0
     },
     "article:ai-machine-learning": {
       "count": 0
@@ -27,6 +27,21 @@
       "count": 0
     },
     "project:Hand-Gesture-Recognition---Major-Project-2026-BCA-": {
+      "count": 0
+    },
+    "blog:Why Git Is Important for Every Developer Even Beginners": {
+      "count": 0
+    },
+    "blog:Documentations are better than AI results": {
+      "count": 1
+    },
+    "blog:Is AI Really Overpowering Human Intelligence A Real Developer Point of View": {
+      "count": 0
+    },
+    "blog:Essential JavaScript Topics You Need to Learn Before ReactJS": {
+      "count": 0
+    },
+    "blog:How to Make Header and Footer Appear on Every Page Without Copying Them Manually Using JS": {
       "count": 0
     }
   }

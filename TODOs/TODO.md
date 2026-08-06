@@ -42,9 +42,6 @@
 ## Admin panel will be just a instance of the website
 where:
 - every comments will be shown and with a button approve or disapprove with it (only work once then delete button only (not for pre existing comments))
-\
-
-
-
 
 - Keep saving the text written in the modal (currently it automatically flushes after few seconds)
+
