@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-06T05:25:09.558Z",
+  "updatedAt": "2026-08-06T10:05:00.458Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
       "count": 0
@@ -12,7 +12,7 @@
       "count": 0
     },
     "article:production-projects": {
-      "count": 0
+      "count": 1
     },
     "article:ai-machine-learning": {
       "count": 0
@@ -33,7 +33,7 @@
       "count": 0
     },
     "blog:Documentations are better than AI results": {
-      "count": 1
+      "count": 0
     },
     "blog:Is AI Really Overpowering Human Intelligence A Real Developer Point of View": {
       "count": 0

@@ -3798,6 +3798,7 @@ function AuthPage({ siteData, auth }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [guideExpanded, setGuideExpanded] = useState(false);
   const navigateWithTransition = useTransitionNavigate();
 
   usePageSetup("Sign Up | Dexteritycoder", "post-page");
@@ -3899,23 +3900,35 @@ function AuthPage({ siteData, auth }) {
 
               <form className="auth-form" onSubmit={handleEmailSubmit}>
                 {mode === "signup" ? (
+                  <div className="auth-form-row">
+                    <input
+                      type="text"
+                      placeholder="Display name"
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      maxLength={80}
+                      required
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email address"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      maxLength={160}
+                      required
+                    />
+                  </div>
+                ) : null}
+                {mode !== "signup" ? (
                   <input
-                    type="text"
-                    placeholder="Display name"
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    maxLength={80}
+                    type="email"
+                    placeholder="Email address"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    maxLength={160}
                     required
                   />
                 ) : null}
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  maxLength={160}
-                  required
-                />
                 <input
                   type="password"
                   placeholder="Password"
@@ -3931,10 +3944,20 @@ function AuthPage({ siteData, auth }) {
             </>
           ) : null}
 
-          <div className="auth-help-text">
-            <p>Use Google, GitHub, or email to create your account and continue where you left off.</p>
-            <p>Your likes, comments, and profile activity stay connected to your signed-in account.</p>
-            <p>Need admin access? Request it during sign up and approved emails will be elevated automatically.</p>
+          <div className="auth-help-text auth-help-text-guide">
+            <p className={!guideExpanded ? "is-collapsed" : ""}>
+              Use Google, GitHub, or email to create your account and continue where you left off. Your likes, comments,
+              and profile activity stay connected to your signed-in account. Need admin access? Request it during sign up
+              and approved emails will be elevated automatically.
+            </p>
+            <button
+              type="button"
+              className="auth-help-toggle"
+              onClick={() => setGuideExpanded((current) => !current)}
+              aria-expanded={guideExpanded}
+            >
+              {guideExpanded ? "Read less" : "Read more"}
+            </button>
           </div>
         </section>
       </main>
@@ -4060,7 +4083,7 @@ function AdminDashboardPanel({ dashboard, loading, error, onReviewComment, onRev
   return (
     <section className="auth-card auth-admin-panel">
       <h2>Admin Dashboard</h2>
-      <div className="auth-account-grid">
+      <div className="auth-account-grid auth-account-grid-stack">
         <div>
           <strong>Role requests</strong>
           <p>{counts.roleRequests}</p>
