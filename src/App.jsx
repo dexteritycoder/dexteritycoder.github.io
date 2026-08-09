@@ -1826,9 +1826,9 @@ function SocialFooter({ footer }) {
       </section>
       <section className="footer-legal-bar" aria-label="Legal">
         <div className="footer-legal-bar-inner">
-          <a href="/privacy-policy.html">Privacy Policy</a>
-          <a href="/cookie-policy.html">Cookie Policy</a>
-          <a href="/advertising-disclosure.html">Advertising Disclosure</a>
+          <a href="/privacy-policy">Privacy Policy</a>
+          <a href="/cookie-policy">Cookie Policy</a>
+          <a href="/advertising-disclosure">Advertising Disclosure</a>
         </div>
       </section>
     </>
@@ -4392,6 +4392,21 @@ function LegacyWritingRedirect() {
   return <Navigate to={`/writings/${encodeURIComponent(blogId || "")}`} replace />;
 }
 
+function LegalPage({ siteData, auth, title, heroTitleHtml, children }) {
+  usePageSetup(title, "post-page legal-page");
+
+  return (
+    <Shell siteData={siteData} auth={auth}>
+      <Hero titleHtml={heroTitleHtml} />
+      <main className="post-article">
+        <section className="post-content">
+          {children}
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
 function AppRoutes({ siteData, engagement, auth, content }) {
   return (
     <Routes>
@@ -4405,6 +4420,100 @@ function AppRoutes({ siteData, engagement, auth, content }) {
       <Route path="/about" element={<AboutPage siteData={siteData} auth={auth} content={content} />} />
       <Route path="/contact" element={<ContactPage siteData={siteData} auth={auth} />} />
       <Route path="/donate" element={<DonatePage siteData={siteData} auth={auth} />} />
+      <Route
+        path="/privacy-policy"
+        element={(
+          <LegalPage siteData={siteData} auth={auth} title="Privacy Policy | Dexteritycoder" heroTitleHtml="<b>PRIVACY</b> POLICY">
+            <h1>Privacy Policy</h1>
+            <p>Last updated: August 9, 2026</p>
+            <p>
+              Dexteritycoder may use analytics, authentication, contact forms, newsletter tools, and future advertising
+              services to operate the website, measure performance, and fund content.
+            </p>
+            <h2>Information We Collect</h2>
+            <ul>
+              <li>Information you submit directly, such as contact details, comments, sign-up details, and profile data.</li>
+              <li>Technical data such as browser type, device information, approximate location, referral source, and page activity.</li>
+              <li>Advertising and attribution data when ad, remarketing, or conversion tools are enabled.</li>
+            </ul>
+            <h2>How Information May Be Used</h2>
+            <ul>
+              <li>To operate the site and user accounts.</li>
+              <li>To respond to messages, moderation actions, and support requests.</li>
+              <li>To measure audience engagement and site performance.</li>
+              <li>To support future advertising, remarketing, conversion measurement, and fraud prevention.</li>
+            </ul>
+            <h2>Advertising Services</h2>
+            <p>
+              Advertising partners such as Google, Meta, or similar platforms may use cookies, local storage, pixels, or
+              comparable technologies to serve ads, measure campaign performance, prevent invalid traffic, and support
+              attribution. If personalized advertising is enabled in the future, additional consent controls may be shown to visitors.
+            </p>
+            <h2>Third-Party Services</h2>
+            <p>
+              The site may rely on third-party providers for hosting, authentication, database storage, analytics, advertising,
+              and communication tools. Those providers process data under their own terms and privacy notices.
+            </p>
+            <h2>Your Choices</h2>
+            <p>
+              You can avoid submitting optional profile information, decline optional cookies if presented, and contact the site
+              owner to request access, correction, or deletion of data where applicable.
+            </p>
+            <h2>Contact</h2>
+            <p>
+              For privacy questions, use the main site contact page: <a href="/contact">dexteritycoder.com/contact</a>.
+            </p>
+          </LegalPage>
+        )}
+      />
+      <Route
+        path="/cookie-policy"
+        element={(
+          <LegalPage siteData={siteData} auth={auth} title="Cookie Policy | Dexteritycoder" heroTitleHtml="<b>COOKIE</b> POLICY">
+            <h1>Cookie Policy</h1>
+            <p>Last updated: August 9, 2026</p>
+            <p>
+              Dexteritycoder may use essential cookies and similar storage technologies for navigation, security, account
+              sessions, saved preferences, spam reduction, analytics, and future advertising integrations.
+            </p>
+            <ul>
+              <li>Essential storage may be used for authentication, session continuity, and security.</li>
+              <li>Preference storage may be used for UI settings and consent choices.</li>
+              <li>Analytics storage may be used to understand traffic and content performance.</li>
+              <li>Advertising storage may be used in the future for ad delivery, frequency capping, and attribution.</li>
+            </ul>
+            <p>
+              If a consent banner or preference center is introduced, it will control optional analytics and advertising storage
+              categories.
+            </p>
+            <p>
+              Return to the site: <a href="/">dexteritycoder.com</a>
+            </p>
+          </LegalPage>
+        )}
+      />
+      <Route
+        path="/advertising-disclosure"
+        element={(
+          <LegalPage siteData={siteData} auth={auth} title="Advertising Disclosure | Dexteritycoder" heroTitleHtml="<b>ADVERTISING</b> DISCLOSURE">
+            <h1>Advertising Disclosure</h1>
+            <p>Last updated: August 9, 2026</p>
+            <p>
+              Dexteritycoder may display third-party advertisements, sponsored placements, or affiliate links in the future.
+              If enabled, those placements are intended to support the operation and growth of the website.
+            </p>
+            <ul>
+              <li>Sponsored or promotional content should be clearly labeled when published.</li>
+              <li>Third-party ad vendors may use cookies or similar technologies for ad delivery and reporting.</li>
+              <li>Ad availability, personalization, and measurement may vary based on region, consent status, and platform support.</li>
+            </ul>
+            <p>
+              Review the <a href="/privacy-policy">Privacy Policy</a> and <a href="/cookie-policy">Cookie Policy</a>
+              for additional details about data use related to advertising and measurement.
+            </p>
+          </LegalPage>
+        )}
+      />
       <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/auth" element={<AuthPage siteData={siteData} auth={auth} />} />
@@ -4421,6 +4530,9 @@ function AppRoutes({ siteData, engagement, auth, content }) {
       <Route path="/pages/about.html" element={<Navigate to="/about" replace />} />
       <Route path="/pages/contact.html" element={<Navigate to="/contact" replace />} />
       <Route path="/pages/donate.html" element={<Navigate to="/donate" replace />} />
+      <Route path="/privacy-policy.html" element={<Navigate to="/privacy-policy" replace />} />
+      <Route path="/cookie-policy.html" element={<Navigate to="/cookie-policy" replace />} />
+      <Route path="/advertising-disclosure.html" element={<Navigate to="/advertising-disclosure" replace />} />
       <Route path="/Blogs/blog-list.html" element={<Navigate to="/writings" replace />} />
       <Route path="/Blogs/blog-detail.html" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/pages/project-detail.html" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />

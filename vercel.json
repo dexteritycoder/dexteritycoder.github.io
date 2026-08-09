@@ -5,6 +5,30 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/privacy-policy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy-policy/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/cookie-policy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/cookie-policy/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/advertising-disclosure",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/advertising-disclosure/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/works",
       "destination": "/index.html"
     },
