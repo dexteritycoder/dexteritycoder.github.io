@@ -3,6 +3,24 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KGJPGWG4F7"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KGJPGWG4F7');
+</script>
+    <meta
+      name="description"
+      content="Dexteritycoder publishes original software engineering writings, projects, and technical resources with a fast, crawlable frontend ready for future advertising integrations."
+    >
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+    <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="theme-color" content="#121212">
+    <link rel="canonical" href="https://dexteritycoder.com/" id="canonical-url">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -15,6 +33,10 @@
     <script>
       (function redirectSpaPath(location) {
         if (!location.search.startsWith("?/")) {
+          var canonical = document.getElementById("canonical-url");
+          if (canonical) {
+            canonical.href = location.origin + location.pathname + location.search;
+          }
           return;
         }
 
@@ -23,7 +45,46 @@
           .replace(/~and~/g, "&");
         const nextUrl = decoded + location.hash;
         window.history.replaceState(null, "", nextUrl);
+        var canonical = document.getElementById("canonical-url");
+        if (canonical) {
+          canonical.href = location.origin + location.pathname + location.search;
+        }
       })(window.location);
+    </script>
+    <script>
+      (function initAdCompatibility(window, document) {
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = window.gtag || function gtag() {
+          window.dataLayer.push(arguments);
+        };
+
+        window.fbq = window.fbq || function fbq() {
+          if (window.fbq.callMethod) {
+            window.fbq.callMethod.apply(window.fbq, arguments);
+            return;
+          }
+          window.fbq.queue = window.fbq.queue || [];
+          window.fbq.queue.push(arguments);
+        };
+        window.fbq.queue = window.fbq.queue || [];
+        window.fbq.loaded = window.fbq.loaded || false;
+        window.fbq.version = window.fbq.version || "2.0";
+
+        window.dexteritycoderAdConfig = window.dexteritycoderAdConfig || {
+          consentMode: {
+            ad_storage: "denied",
+            analytics_storage: "denied",
+            ad_user_data: "denied",
+            ad_personalization: "denied",
+          },
+          slots: [],
+        };
+
+        window.gtag("consent", "default", window.dexteritycoderAdConfig.consentMode);
+        window.fbq("consent", "revoke");
+
+        document.documentElement.dataset.adServicesReady = "true";
+      })(window, document);
     </script>
   </head>
   <body>

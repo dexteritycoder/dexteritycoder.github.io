@@ -1,0 +1,4 @@
+# Replace the placeholder lines below with the exact seller records
+# issued by your ad platforms before requesting production ad reviews.
+# Example for Google AdSense:
+# google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0

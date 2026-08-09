@@ -1820,6 +1820,11 @@ function SocialFooter({ footer }) {
         <hr className="footer_hr" />
         <div className="copyright">
           <p>{footer.copyright}</p>
+          <div className="footer-legal-links" aria-label="Legal">
+            <a href="/privacy-policy.html">Privacy Policy</a>
+            <a href="/cookie-policy.html">Cookie Policy</a>
+            <a href="/advertising-disclosure.html">Advertising Disclosure</a>
+          </div>
         </div>
       </footer>
     </section>

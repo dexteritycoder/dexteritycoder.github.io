@@ -1706,6 +1706,28 @@ footer {
     font-size: var(--font-sm);
 }
 
+.footer-legal-links {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px 18px;
+}
+
+.footer-legal-links a {
+    color: rgba(255, 255, 255, 0.76);
+    text-decoration: none;
+    font-size: var(--font-sm-navbar);
+    letter-spacing: 0.04em;
+}
+
+.footer-legal-links a:hover,
+.footer-legal-links a:focus-visible {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+}
+
 label {
     color: rgba(255, 255, 255, 0.7);
     font-size: var(--font-xs);
