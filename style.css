@@ -459,6 +459,10 @@ body.menu-open .line:nth-child(3) {
     align-items: start;
 }
 
+.auth-page-shell-stack {
+    grid-template-columns: 1fr;
+}
+
 .auth-card {
     width: 100%;
     margin: 0;

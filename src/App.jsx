@@ -4319,7 +4319,7 @@ function AccountPage({ siteData, auth, content }) {
   return (
     <Shell siteData={siteData} auth={auth}>
       <Hero titleHtml="<b>YOUR</b> ACCOUNT" />
-      <main className="auth-page-shell">
+      <main className={`auth-page-shell${profile.role === "admin" ? " auth-page-shell-stack" : ""}`}>
         <section className="auth-card auth-profile-card">
           <h2>{profile.displayName}</h2>
           <p className="auth-account-meta">{profile.email}</p>
