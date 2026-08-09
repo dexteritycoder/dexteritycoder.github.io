@@ -1789,45 +1789,49 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
 
 function SocialFooter({ footer }) {
   return (
-    <section className="whole_footer">
-      <footer>
-        <div className="social-icons">
-          {footer.socials.map((social) => (
-            <a
-              key={social.label}
-              href={social.href}
-              aria-label={social.label}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <img src={social.icon} alt="" />
-            </a>
-          ))}
-        </div>
-        <hr className="footer_hr" />
-        <div className="newsletter">
-          <h1>{footer.brand}</h1>
-          <form action="#">
-            <p>{footer.newsletterPrompt}</p>
-            <input type="email" required />
-            <div className="newsletter-check">
-              <input type="checkbox" id="subscribe" />
-              <label htmlFor="subscribe">{footer.newsletterCheckbox}</label>
-            </div>
-            <button type="submit">{footer.newsletterButton}</button>
-          </form>
-        </div>
-        <hr className="footer_hr" />
-        <div className="copyright">
-          <p>{footer.copyright}</p>
-          <div className="footer-legal-links" aria-label="Legal">
-            <a href="/privacy-policy.html">Privacy Policy</a>
-            <a href="/cookie-policy.html">Cookie Policy</a>
-            <a href="/advertising-disclosure.html">Advertising Disclosure</a>
+    <>
+      <section className="whole_footer">
+        <footer>
+          <div className="social-icons">
+            {footer.socials.map((social) => (
+              <a
+                key={social.label}
+                href={social.href}
+                aria-label={social.label}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <img src={social.icon} alt="" />
+              </a>
+            ))}
           </div>
+          <hr className="footer_hr" />
+          <div className="newsletter">
+            <h1>{footer.brand}</h1>
+            <form action="#">
+              <p>{footer.newsletterPrompt}</p>
+              <input type="email" required />
+              <div className="newsletter-check">
+                <input type="checkbox" id="subscribe" />
+                <label htmlFor="subscribe">{footer.newsletterCheckbox}</label>
+              </div>
+              <button type="submit">{footer.newsletterButton}</button>
+            </form>
+          </div>
+          <hr className="footer_hr" />
+          <div className="copyright">
+            <p>{footer.copyright}</p>
+          </div>
+        </footer>
+      </section>
+      <section className="footer-legal-bar" aria-label="Legal">
+        <div className="footer-legal-bar-inner">
+          <a href="/privacy-policy.html">Privacy Policy</a>
+          <a href="/cookie-policy.html">Cookie Policy</a>
+          <a href="/advertising-disclosure.html">Advertising Disclosure</a>
         </div>
-      </footer>
-    </section>
+      </section>
+    </>
   );
 }
 

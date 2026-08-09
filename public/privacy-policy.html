@@ -17,6 +17,14 @@
       content="Privacy policy for Dexteritycoder, including advertising, analytics, contact, and account data handling disclosures."
     >
     <meta name="robots" content="index,follow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,100..900,0..100,0..1&display=swap"
+      rel="stylesheet"
+    >
+    <link rel="icon" type="image/x-icon" href="/images/logo.png">
+    <link rel="stylesheet" href="/style.css">
     <title>Privacy Policy | Dexteritycoder</title>
     <style>
       :root {
@@ -39,11 +47,48 @@
         background: var(--bg);
         color: var(--text);
         line-height: 1.6;
+        padding-top: 88px;
+      }
+
+      .legal-hero {
+        color: var(--text);
+        text-align: center;
+        width: 100%;
+        margin-top: -22px;
+        letter-spacing: clamp(4px, 0.9vw, 10px);
+        background:
+          linear-gradient(rgba(18, 18, 18, 0.38), rgba(18, 18, 18, 0.58)),
+          url("/images/background.jpg");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .legal-hero-inner {
+        width: min(1120px, calc(100vw - 48px));
+        margin: 0 auto;
+      }
+
+      .legal-hero h1 {
+        margin: 0;
+        font-size: clamp(1.75rem, 2vw + 1.2rem, 3rem);
+        font-weight: 300;
+        line-height: 1.1;
+        padding: 0 20px;
+        letter-spacing: inherit;
+      }
+
+      .legal-hero b {
+        font-weight: 600;
       }
 
       main {
         width: min(880px, calc(100vw - 32px));
-        margin: 48px auto;
+        margin: 48px auto 64px;
         padding: 32px;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -63,9 +108,95 @@
       a {
         color: var(--accent);
       }
+
+      .legal-links-bar {
+        padding: 0 0 28px;
+        background: #000;
+      }
+
+      .legal-links-bar-inner {
+        width: min(1120px, calc(100vw - 48px));
+        margin: 0 auto;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px 24px;
+      }
+
+      .legal-links-bar a {
+        color: rgba(255, 255, 255, 0.76);
+        text-decoration: none;
+        font-size: 0.86rem;
+        letter-spacing: 0.04em;
+      }
+
+      .legal-links-bar a:hover,
+      .legal-links-bar a:focus-visible {
+        color: #fff;
+        text-decoration: underline;
+        text-underline-offset: 0.18em;
+      }
+
+      #rightnav ul a.nav-auth-cta,
+      #rightnav ul a.nav-auth-cta:visited,
+      #rightnav ul a.nav-auth-cta:hover,
+      #rightnav ul a.nav-auth-cta:focus-visible,
+      #rightnav ul a.nav-auth-cta li,
+      #rightnav ul a.nav-auth-cta:hover li,
+      #rightnav ul a.nav-auth-cta:focus-visible li {
+        color: #111 !important;
+      }
+
+      @media (max-width: 760px) {
+        body {
+          padding-top: 112px;
+        }
+      }
     </style>
   </head>
-  <body>
+  <body class="post-page">
+    <button class="ham" onclick="ham()" aria-label="Open menu" type="button">
+      <div class="line"></div>
+      <div class="line"></div>
+      <div class="line"></div>
+    </button>
+    <div class="navbar">
+      <div id="leftnav">
+        <a href="/index.html" style="text-decoration: none; color: inherit;">
+          <h4>DEXTERITYCODER</h4>
+        </a>
+      </div>
+      <div id="rightnav">
+        <ul id="rightnavul">
+          <a href="/index.html">
+            <li>HOME</li>
+          </a>
+          <a href="/works">
+            <li>WORKS</li>
+          </a>
+          <a href="/writings">
+            <li>WRITINGS</li>
+          </a>
+          <a href="/donate"><li>DONATE</li></a>
+          <a href="/contact">
+            <li>CONTACT</li>
+          </a>
+          <a href="/about">
+            <li>ABOUT</li>
+          </a>
+          <a href="/auth" class="nav-auth-cta">
+            <li>SIGN UP</li>
+          </a>
+        </ul>
+      </div>
+    </div>
+    <section class="legal-hero">
+      <div class="legal-hero-inner">
+        <h1><b>PRIVACY</b> POLICY</h1>
+      </div>
+    </section>
     <main>
       <h1>Privacy Policy</h1>
       <p>Last updated: August 9, 2026</p>
@@ -113,5 +244,40 @@
         For privacy questions, use the main site contact page: <a href="/contact">dexteritycoder.com/contact</a>.
       </p>
     </main>
+    <section class="whole_footer">
+      <footer>
+        <div class="social-icons">
+          <a href="#" aria-label="Facebook"><img src="/images/facebook.avif" alt=""></a>
+          <a href="#" aria-label="Twitter"><img src="/images/twitter.avif" alt=""></a>
+          <a href="#" aria-label="Pinterest"><img src="/images/pinterest.avif" alt=""></a>
+          <a href="#" aria-label="Instagram"><img src="/images/instagram.avif" alt=""></a>
+        </div>
+        <hr class="footer_hr">
+        <div class="newsletter">
+          <h1>DEXTERITYCODER</h1>
+          <form action="#">
+            <p>Enter your email here *</p>
+            <input type="email" required>
+            <div class="newsletter-check">
+              <input type="checkbox" id="subscribe">
+              <label for="subscribe">Yes, subscribe me to your newsletter.</label>
+            </div>
+            <button type="submit">Subscribe</button>
+          </form>
+        </div>
+        <hr class="footer_hr">
+        <div class="copyright">
+          <p>© 2026 Dexteritycoder</p>
+        </div>
+      </footer>
+    </section>
+    <section class="legal-links-bar" aria-label="Legal">
+      <div class="legal-links-bar-inner">
+        <a href="/privacy-policy.html">Privacy Policy</a>
+        <a href="/cookie-policy.html">Cookie Policy</a>
+        <a href="/advertising-disclosure.html">Advertising Disclosure</a>
+      </div>
+    </section>
+    <script src="/script.js"></script>
   </body>
 </html>
