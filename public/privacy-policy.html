@@ -27,86 +27,19 @@
     <link rel="stylesheet" href="/style.css">
     <title>Privacy Policy | Dexteritycoder</title>
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #121212;
-        --surface: #1b1b1b;
-        --border: rgba(255, 255, 255, 0.1);
-        --text: #f5f5f5;
-        --muted: rgba(255, 255, 255, 0.72);
-        --accent: #4caf50;
+      .legal-page-shell {
+        padding-bottom: 64px;
       }
 
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: "Fraunces", Georgia, serif;
-        background: var(--bg);
-        color: var(--text);
-        line-height: 1.6;
-        padding-top: 88px;
-      }
-
-      .legal-hero {
-        color: var(--text);
-        text-align: center;
-        width: 100%;
-        margin-top: -22px;
-        letter-spacing: clamp(4px, 0.9vw, 10px);
-        background:
-          linear-gradient(rgba(18, 18, 18, 0.38), rgba(18, 18, 18, 0.58)),
-          url("/images/background.jpg");
-        background-size: cover;
-        background-repeat: no-repeat;
-        background-position: center;
-        min-height: 300px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .legal-hero-inner {
-        width: min(1120px, calc(100vw - 48px));
-        margin: 0 auto;
-      }
-
-      .legal-hero h1 {
-        margin: 0;
-        font-size: clamp(1.75rem, 2vw + 1.2rem, 3rem);
-        font-weight: 300;
-        line-height: 1.1;
-        padding: 0 20px;
-        letter-spacing: inherit;
-      }
-
-      .legal-hero b {
-        font-weight: 600;
-      }
-
-      main {
-        width: min(880px, calc(100vw - 32px));
-        margin: 48px auto 64px;
-        padding: 32px;
-        background: var(--surface);
-        border: 1px solid var(--border);
+      .legal-page-shell .post-content {
+        padding: clamp(28px, 4vw, 40px);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 24px;
       }
 
-      h1,
-      h2 {
-        line-height: 1.2;
-      }
-
-      p,
-      li {
-        color: var(--muted);
-      }
-
-      a {
-        color: var(--accent);
+      .legal-page-shell .post-content > :first-child {
+        margin-top: 0;
       }
 
       .legal-links-bar {
@@ -148,12 +81,6 @@
       #rightnav ul a.nav-auth-cta:focus-visible li {
         color: #111 !important;
       }
-
-      @media (max-width: 760px) {
-        body {
-          padding-top: 112px;
-        }
-      }
     </style>
   </head>
   <body class="post-page">
@@ -192,57 +119,57 @@
         </ul>
       </div>
     </div>
-    <section class="legal-hero">
-      <div class="legal-hero-inner">
-        <h1><b>PRIVACY</b> POLICY</h1>
-      </div>
+    <section class="hero">
+      <h1><b>PRIVACY</b> POLICY</h1>
     </section>
-    <main>
-      <h1>Privacy Policy</h1>
-      <p>Last updated: August 9, 2026</p>
-      <p>
-        Dexteritycoder may use analytics, authentication, contact forms, newsletter tools, and future advertising
-        services to operate the website, measure performance, and fund content.
-      </p>
+    <main class="post-article legal-page-shell">
+      <section class="post-content">
+        <h1>Privacy Policy</h1>
+        <p>Last updated: August 9, 2026</p>
+        <p>
+          Dexteritycoder may use analytics, authentication, contact forms, newsletter tools, and future advertising
+          services to operate the website, measure performance, and fund content.
+        </p>
 
-      <h2>Information We Collect</h2>
-      <ul>
-        <li>Information you submit directly, such as contact details, comments, sign-up details, and profile data.</li>
-        <li>Technical data such as browser type, device information, approximate location, referral source, and page activity.</li>
-        <li>Advertising and attribution data when ad, remarketing, or conversion tools are enabled.</li>
-      </ul>
+        <h2>Information We Collect</h2>
+        <ul>
+          <li>Information you submit directly, such as contact details, comments, sign-up details, and profile data.</li>
+          <li>Technical data such as browser type, device information, approximate location, referral source, and page activity.</li>
+          <li>Advertising and attribution data when ad, remarketing, or conversion tools are enabled.</li>
+        </ul>
 
-      <h2>How Information May Be Used</h2>
-      <ul>
-        <li>To operate the site and user accounts.</li>
-        <li>To respond to messages, moderation actions, and support requests.</li>
-        <li>To measure audience engagement and site performance.</li>
-        <li>To support future advertising, remarketing, conversion measurement, and fraud prevention.</li>
-      </ul>
+        <h2>How Information May Be Used</h2>
+        <ul>
+          <li>To operate the site and user accounts.</li>
+          <li>To respond to messages, moderation actions, and support requests.</li>
+          <li>To measure audience engagement and site performance.</li>
+          <li>To support future advertising, remarketing, conversion measurement, and fraud prevention.</li>
+        </ul>
 
-      <h2>Advertising Services</h2>
-      <p>
-        Advertising partners such as Google, Meta, or similar platforms may use cookies, local storage, pixels, or
-        comparable technologies to serve ads, measure campaign performance, prevent invalid traffic, and support
-        attribution. If personalized advertising is enabled in the future, additional consent controls may be shown to visitors.
-      </p>
+        <h2>Advertising Services</h2>
+        <p>
+          Advertising partners such as Google, Meta, or similar platforms may use cookies, local storage, pixels, or
+          comparable technologies to serve ads, measure campaign performance, prevent invalid traffic, and support
+          attribution. If personalized advertising is enabled in the future, additional consent controls may be shown to visitors.
+        </p>
 
-      <h2>Third-Party Services</h2>
-      <p>
-        The site may rely on third-party providers for hosting, authentication, database storage, analytics, advertising,
-        and communication tools. Those providers process data under their own terms and privacy notices.
-      </p>
+        <h2>Third-Party Services</h2>
+        <p>
+          The site may rely on third-party providers for hosting, authentication, database storage, analytics, advertising,
+          and communication tools. Those providers process data under their own terms and privacy notices.
+        </p>
 
-      <h2>Your Choices</h2>
-      <p>
-        You can avoid submitting optional profile information, decline optional cookies if presented, and contact the site
-        owner to request access, correction, or deletion of data where applicable.
-      </p>
+        <h2>Your Choices</h2>
+        <p>
+          You can avoid submitting optional profile information, decline optional cookies if presented, and contact the site
+          owner to request access, correction, or deletion of data where applicable.
+        </p>
 
-      <h2>Contact</h2>
-      <p>
-        For privacy questions, use the main site contact page: <a href="/contact">dexteritycoder.com/contact</a>.
-      </p>
+        <h2>Contact</h2>
+        <p>
+          For privacy questions, use the main site contact page: <a href="/contact">dexteritycoder.com/contact</a>.
+        </p>
+      </section>
     </main>
     <section class="whole_footer">
       <footer>
