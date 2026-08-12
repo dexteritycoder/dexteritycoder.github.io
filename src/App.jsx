@@ -1971,6 +1971,14 @@ function Navbar({ siteData, auth }) {
 
   return (
     <>
+      <div
+        className={`menu-backdrop${menuOpen ? " is-visible" : ""}`}
+        aria-hidden="true"
+        onClick={() => {
+          setMenuOpen(false);
+          setProfileMenuOpen(false);
+        }}
+      ></div>
       <button
         className="ham"
         aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -2501,12 +2509,43 @@ function MarkdownContent({ markdown }) {
   return <section className="post-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(markdown) }}></section>;
 }
 
+function FreelancingActionGrid() {
+  return (
+    <section className="freelancing-grid" aria-label="Freelancing actions">
+      <div className="blog-card freelancing-content-card">
+        <div className="blog-content">
+          <span className="blog-category">Freelancing</span>
+          <h3>Project details coming here</h3>
+          <p>Send me the content you want on this page and I will paste it into this section next.</p>
+        </div>
+      </div>
+      <div className="blog-card freelancing-cta-card">
+        <div className="blog-content">
+          <span className="blog-category">Hire Me</span>
+          <h3>Choose the way you want to start</h3>
+          <p>Use the direct site contact option now, and we can swap in your Fiverr profile link as soon as you share it.</p>
+          <div className="freelancing-cta-buttons">
+            <TransitionLink href="/contact" style={{ textDecoration: "none" }}>
+              <button className="freelancing-cta-button">hire me here</button>
+            </TransitionLink>
+            <TransitionLink href="#" style={{ textDecoration: "none" }}>
+              <button className="freelancing-cta-button freelancing-cta-button-secondary">hire me on fiverr</button>
+            </TransitionLink>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Shell({ siteData, auth, children }) {
   return (
     <>
       <Navbar siteData={siteData} auth={auth || { user: null, signOutUser: async () => {} }} />
-      {children}
-      <SocialFooter footer={siteData.footer} />
+      <div className="shell-content">
+        {children}
+        <SocialFooter footer={siteData.footer} />
+      </div>
     </>
   );
 }
@@ -2682,6 +2721,7 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth
           {loading ? <section className="post-content"><p>Loading...</p></section> : null}
           {error ? <section className="post-content"><p>Error loading content.</p></section> : null}
           {!loading && !error ? <MarkdownContent markdown={managedPage?.markdown || data} /> : null}
+          {slug === "available-for-freelancing" ? <FreelancingActionGrid /> : null}
           <TransitionLink href={page.ctaHref}>
             <button className="call-to-blog-button">{page.ctaLabel}</button>
           </TransitionLink>

@@ -87,6 +87,12 @@ body.page-leaving {
     opacity: 0;
 }
 
+.shell-content {
+    position: relative;
+    z-index: 0;
+    transition: filter var(--transition-fast), opacity var(--transition-fast);
+}
+
 img,
 svg {
     display: block;
@@ -143,6 +149,23 @@ button {
     backdrop-filter: blur(14px);
 }
 
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 9, 14, 0.58);
+    backdrop-filter: blur(0px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-fast), backdrop-filter var(--transition-fast);
+    z-index: 8;
+}
+
+.menu-backdrop.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    backdrop-filter: blur(4px);
+}
+
 .line {
     width: 20px;
     height: 2px;
@@ -161,6 +184,10 @@ body.menu-open .line:nth-child(2) {
 
 body.menu-open .line:nth-child(3) {
     transform: translateY(-7px) rotate(-45deg);
+}
+
+body.menu-open .shell-content {
+    filter: blur(4px) brightness(0.72);
 }
 
 .navbar {
@@ -669,6 +696,8 @@ body.menu-open .line:nth-child(3) {
     padding: 0.72rem 0.9rem;
     border-radius: 999px;
     font-size: 0.92rem;
+    text-align: center;
+    flex-wrap: wrap;
 }
 
 .auth-provider-icon {
@@ -1034,6 +1063,16 @@ body.menu-open .line:nth-child(3) {
 }
 
 @media (max-width: 900px) {
+    .auth-page-shell {
+        padding: 28px 0 72px;
+        gap: 18px;
+    }
+
+    .auth-card {
+        padding: 22px;
+        border-radius: 22px;
+    }
+
     .auth-role-picker,
     .auth-provider-grid,
     .auth-account-grid,
@@ -1073,6 +1112,91 @@ body.menu-open .line:nth-child(3) {
     .cms-editor-preview {
         min-height: 40vh;
         max-height: 40vh;
+    }
+}
+
+@media (max-width: 680px) {
+    .auth-page-shell {
+        grid-template-columns: 1fr;
+        padding: 22px 0 56px;
+    }
+
+    .auth-card {
+        padding: 18px;
+        border-radius: 20px;
+    }
+
+    .auth-mode-switch {
+        width: 100%;
+    }
+
+    .auth-mode-switch button {
+        min-width: 0;
+        padding: 0.82rem 0.85rem;
+    }
+
+    .auth-role-dropdown {
+        width: 100%;
+    }
+
+    .auth-role-menu-option {
+        align-items: flex-start;
+        border-radius: 20px;
+        padding: 0.7rem 0.8rem;
+    }
+
+    .auth-role-menu-tooltip {
+        right: auto;
+        left: 0;
+        top: calc(100% + 10px);
+        transform: none;
+        width: min(100%, 260px);
+    }
+
+    .auth-provider-btn {
+        min-height: 58px;
+        padding: 0.9rem 1rem;
+        border-radius: 20px;
+    }
+
+    .auth-form input,
+    .auth-submit-btn {
+        padding: 0.9rem 0.95rem;
+    }
+
+    .auth-help-text {
+        margin-top: 16px;
+    }
+
+    .auth-help-text-guide p.is-collapsed {
+        white-space: normal;
+        display: -webkit-box;
+        --webkit-box-orient: vertical;
+        --webkit-line-clamp: 3;
+    }
+}
+
+@media (max-width: 420px) {
+    .auth-page-shell {
+        padding: 18px 0 48px;
+    }
+
+    .auth-card {
+        padding: 16px;
+    }
+
+    .auth-mode-switch {
+        gap: 6px;
+        padding: 5px;
+    }
+
+    .auth-provider-btn {
+        font-size: 0.88rem;
+    }
+
+    .auth-divider {
+        gap: 10px;
+        margin: 18px 0;
     }
 }
 
@@ -1999,6 +2123,13 @@ form p {
 
     #leftnav {
         margin-left: 0;
+        transition: opacity var(--transition-fast), visibility var(--transition-fast);
+    }
+
+    body.menu-open #leftnav {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
     }
 
     #rightnav {
@@ -2924,6 +3055,114 @@ form p {
     color: white;
 }
 
+.freelancing-grid {
+    width: var(--page-width);
+    margin: 44px auto 36px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px;
+    align-items: stretch;
+}
+
+.freelancing-grid .blog-card {
+    width: 100%;
+    margin: 0 !important;
+    min-height: 360px;
+}
+
+.freelancing-content-card,
+.freelancing-cta-card {
+    cursor: default;
+}
+
+.freelancing-content-card:hover,
+.freelancing-cta-card:hover {
+    transform: none;
+}
+
+.freelancing-content-card .blog-content,
+.freelancing-cta-card .blog-content {
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.freelancing-content-card h3,
+.freelancing-cta-card h3 {
+    font-size: clamp(1.2rem, 0.7vw + 1rem, 1.55rem);
+    margin-bottom: 14px;
+}
+
+.freelancing-content-card p,
+.freelancing-cta-card p {
+    color: var(--secondary-text);
+    line-height: 1.8;
+}
+
+.freelancing-cta-card {
+    background:
+        radial-gradient(circle at top right, rgba(17, 109, 255, 0.16), transparent 34%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+}
+
+.freelancing-cta-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: auto;
+    align-self: stretch;
+    width: calc(200% + 40px);
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-top: 28px;
+    padding-left: 10px;
+    padding-right: 10px;
+    box-sizing: border-box;
+}
+
+.freelancing-cta-buttons > * {
+    display: block;
+    width: 100%;
+}
+
+.freelancing-cta-button {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    padding: 14px 12px;
+    background: white;
+    color: black;
+    font-size: clamp(0.65rem, 1.1vw + 0.32rem, 0.95rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.freelancing-cta-button:hover,
+.freelancing-cta-button:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px rgba(17, 109, 255, 0.24);
+    background: #116dff;
+    color: white;
+}
+
+.freelancing-cta-button-secondary {
+    background: transparent;
+    color: white;
+}
+
+.freelancing-cta-button-secondary:hover,
+.freelancing-cta-button-secondary:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
 .engagement-panel{
     margin-top: 2rem;
     padding: 1.5rem;
@@ -3268,5 +3507,14 @@ form p {
 
     .engagement-form-grid{
         grid-template-columns: 1fr;
+    }
+
+    .freelancing-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .freelancing-cta-buttons {
+        grid-template-columns: 1fr;
+        width: max-content;
     }
 }
