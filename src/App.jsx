@@ -160,6 +160,23 @@ function usePageSetup(title, bodyClassName = "") {
     window.scrollTo(0, 0);
     document.body.className = bodyClassName ? `${bodyClassName} page-ready` : "page-ready";
   }, [bodyClassName, location.pathname, location.search]);
+
+  useEffect(() => {
+    const pagePath = `${location.pathname}${location.search}${location.hash}`;
+    const canonicalLink = document.getElementById("canonical-url");
+
+    if (canonicalLink) {
+      canonicalLink.href = `${window.location.origin}${pagePath}`;
+    }
+
+    if (typeof window.gtag === "function") {
+      window.gtag("event", "page_view", {
+        page_title: title,
+        page_path: pagePath,
+        page_location: window.location.href,
+      });
+    }
+  }, [location.hash, location.pathname, location.search, title]);
 }
 
 function useTransitionNavigate() {
