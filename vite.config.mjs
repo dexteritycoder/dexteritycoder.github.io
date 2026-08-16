@@ -10,6 +10,7 @@ const adminUsersHandler = require("./api/admin-users.js");
 const adminDashboardHandler = require("./api/admin-dashboard.js");
 const adminCommentsHandler = require("./api/admin-comments.js");
 const contentHandler = require("./api/content.js");
+const contactHandler = require("./api/contact.js");
 
 function engagementApiPlugin() {
   const routes = new Map([
@@ -20,6 +21,7 @@ function engagementApiPlugin() {
     ["/api/admin-dashboard", adminDashboardHandler],
     ["/api/admin-comments", adminCommentsHandler],
     ["/api/content", contentHandler],
+    ["/api/contact", contactHandler],
   ]);
 
   async function runHandler(req, res, handler) {

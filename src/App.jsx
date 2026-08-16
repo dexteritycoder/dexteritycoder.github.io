@@ -41,6 +41,7 @@ import {
   reviewContentRequest,
   submitContentRequest,
 } from "./lib/contentApi";
+import { submitContactRequest } from "./lib/contactApi";
 import {
   clearPendingRequestedRole,
   getAuthRedirectUrl,
@@ -2535,32 +2536,392 @@ function MarkdownContent({ markdown }) {
   return <section className="post-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(markdown) }}></section>;
 }
 
-function FreelancingActionGrid() {
+const FREELANCING_GIG = {
+  title: "I will make high performing modern website for your business",
+  category: "Business Website",
+  images: ["/gigs/gig-image-1.png", "/gigs/gig-image-2.png", "/gigs/gig-image-3.png"],
+  about: [
+    "I build modern, fast, and high performing websites that help your business grow online. Whether you need a simple one page site or a full online store, I create clean designs that work well on mobile and desktop and load quickly for a better user experience.",
+    "I focus on real, functional websites, not just templates. Every project includes speed optimization, proper hosting setup, and a design built around your brand and goals. If you need e-commerce, payment integration, or email opt-in forms connected to an auto-responder, I can set that up too.",
+    "I treat every project like it is my own business, because I run one myself. Let's build something that actually performs, not just something that looks good.",
+  ],
+  websiteType: "Business",
+  languages: ["HTML & CSS", "Python", "React", "Tailwind CSS", "Node.js"],
+  features: [
+    "Payment",
+    "Social media",
+    "Video",
+    "Form",
+    "Map",
+    "FAQ",
+    "Gallery",
+    "Landing page",
+    "User Authentication",
+    "Admin Panel",
+  ],
+  plans: [
+    {
+      id: "basic",
+      label: "Basic",
+      name: "Starter Site",
+      price: "₹8,015.55",
+      summary: "A sleek, single-page responsive website to establish your online presence fast.",
+      delivery: "3-day delivery",
+      revisions: "1 Revision",
+      included: [
+        "Functional website",
+        "1 page",
+        "Content upload",
+        "2 plugins/extensions",
+        "Speed optimization",
+        "Hosting setup",
+        "Social media icons",
+      ],
+      excluded: [
+        "E-commerce functionality",
+        "10 products",
+        "Payment Integration",
+        "Opt-in form",
+        "Autoresponder integration",
+      ],
+    },
+    {
+      id: "standard",
+      label: "Standard",
+      name: "Growth Site",
+      price: "₹12,023.33",
+      summary: "A multi-page, SEO-optimized website with custom design built to convert visitors into customers.",
+      delivery: "7-day delivery",
+      revisions: "3 Revisions",
+      included: [
+        "Functional website",
+        "4 pages",
+        "Content upload",
+        "4 plugins/extensions",
+        "E-commerce functionality",
+        "10 products",
+        "Opt-in form",
+        "Speed optimization",
+        "Hosting setup",
+        "Social media icons",
+      ],
+      excluded: ["Payment Integration", "Autoresponder integration"],
+    },
+    {
+      id: "premium",
+      label: "Premium",
+      name: "Pro Website",
+      price: "₹25,048.60",
+      summary: "A fully custom, high-performance website with advanced features & animations.",
+      delivery: "10-day delivery",
+      revisions: "Unlimited Revisions",
+      included: [
+        "Functional website",
+        "10 pages",
+        "Content upload",
+        "6 plugins/extensions",
+        "E-commerce functionality",
+        "30 products",
+        "Payment Integration",
+        "Opt-in form",
+        "Autoresponder integration",
+        "Speed optimization",
+        "Hosting setup",
+        "Social media icons",
+      ],
+      excluded: [],
+    },
+  ],
+};
+
+function FreelancingGigModal({ open, onClose }) {
+  const [selectedPlanId, setSelectedPlanId] = useState(FREELANCING_GIG.plans[0].id);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [activeGalleryIndex, setActiveGalleryIndex] = useState(-1);
+  const selectedPlan =
+    FREELANCING_GIG.plans.find((plan) => plan.id === selectedPlanId) || FREELANCING_GIG.plans[0];
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.body.classList.add("modal-open");
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.classList.remove("modal-open");
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedPlanId(FREELANCING_GIG.plans[0].id);
+      setSelectedImageIndex(0);
+      setActiveGalleryIndex(-1);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (activeGalleryIndex < 0) {
+      return undefined;
+    }
+
+    function handleGalleryKeyDown(event) {
+      if (event.key === "Escape") {
+        setActiveGalleryIndex(-1);
+      } else if (event.key === "ArrowLeft") {
+        setActiveGalleryIndex((index) => (index <= 0 ? FREELANCING_GIG.images.length - 1 : index - 1));
+      } else if (event.key === "ArrowRight") {
+        setActiveGalleryIndex((index) => (index >= FREELANCING_GIG.images.length - 1 ? 0 : index + 1));
+      }
+    }
+
+    window.addEventListener("keydown", handleGalleryKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGalleryKeyDown);
+    };
+  }, [activeGalleryIndex]);
+
+  function showPreviousGalleryImage() {
+    setActiveGalleryIndex((index) => (index <= 0 ? FREELANCING_GIG.images.length - 1 : index - 1));
+  }
+
+  function showNextGalleryImage() {
+    setActiveGalleryIndex((index) => (index >= FREELANCING_GIG.images.length - 1 ? 0 : index + 1));
+  }
+
+  if (!open) {
+    return null;
+  }
+
   return (
-    <section className="freelancing-grid" aria-label="Freelancing actions">
-      <div className="blog-card freelancing-content-card">
-        <div className="blog-content">
-          <span className="blog-category">Freelancing</span>
-          <h3>Project details coming here</h3>
-          <p>Send me the content you want on this page and I will paste it into this section next.</p>
+    <div className="auth-modal-backdrop" role="dialog" aria-modal="true" aria-label="Freelancing gig" onClick={onClose}>
+      <div className="auth-modal-card freelancing-modal-card" onClick={(event) => event.stopPropagation()}>
+        <div className="freelancing-modal-header">
+          <div>
+            <p className="freelancing-modal-eyebrow">Hire Me Here</p>
+            <h2>{FREELANCING_GIG.title}</h2>
+            <p className="freelancing-modal-copy">
+              High performing business website service with modern execution, clean brand presentation, and conversion-ready structure.
+            </p>
+          </div>
+          <button type="button" className="gallery-modal-close freelancing-modal-close" onClick={onClose} aria-label="Close gigs modal">
+            ×
+          </button>
         </div>
+        <div className="freelancing-modal-layout">
+          <aside className="freelancing-gig-media" aria-label="Gig reference images">
+            <button
+              type="button"
+              className="freelancing-gig-hero-shot"
+              onClick={() => setActiveGalleryIndex(selectedImageIndex)}
+              aria-label={`Open gig image ${selectedImageIndex + 1} of ${FREELANCING_GIG.images.length}`}
+            >
+              <img
+                src={FREELANCING_GIG.images[selectedImageIndex]}
+                alt={`${FREELANCING_GIG.title} reference ${selectedImageIndex + 1}`}
+              />
+            </button>
+            <div className="freelancing-gig-thumbs">
+              {FREELANCING_GIG.images.map((image, index) => (
+                <button
+                  key={image}
+                  type="button"
+                  className={`freelancing-gig-thumb${selectedImageIndex === index ? " is-active" : ""}`}
+                  onClick={() => setSelectedImageIndex(index)}
+                >
+                  <img src={image} alt={`Gig preview ${index + 1}`} />
+                </button>
+              ))}
+            </div>
+          </aside>
+          <section className="freelancing-gig-detail" aria-live="polite">
+            <div className="freelancing-gig-topline">
+              <span className="blog-category">{FREELANCING_GIG.category}</span>
+              <a href="https://www.fiverr.com/dexteritycoder_" className="freelancing-inline-link" target="_blank" rel="noreferrer">
+                Open on Fiverr
+              </a>
+            </div>
+
+            <div className="freelancing-gig-section">
+              <h3>About this gig</h3>
+              {FREELANCING_GIG.about.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+
+            <div className="freelancing-gig-facts">
+              <div>
+                <span>Website type</span>
+                <strong>{FREELANCING_GIG.websiteType}</strong>
+              </div>
+              <div>
+                <span>Programming language</span>
+                <strong>{FREELANCING_GIG.languages.join(" • ")}</strong>
+              </div>
+            </div>
+
+            <div className="freelancing-gig-section">
+              <h3>Website features</h3>
+              <div className="freelancing-feature-grid">
+                {FREELANCING_GIG.features.map((feature) => (
+                  <span key={feature} className="freelancing-feature-pill">{feature}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="freelancing-gig-section">
+              <h3>Plans</h3>
+              <div className="freelancing-plan-tabs" role="tablist" aria-label="Gig plans">
+                {FREELANCING_GIG.plans.map((plan) => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedPlan.id === plan.id}
+                    className={`freelancing-plan-tab${selectedPlan.id === plan.id ? " is-active" : ""}`}
+                    onClick={() => setSelectedPlanId(plan.id)}
+                  >
+                    {plan.label}
+                  </button>
+                ))}
+              </div>
+              <div className="freelancing-plan-card">
+                <h4>{selectedPlan.name}</h4>
+                <div className="freelancing-plan-price">{selectedPlan.price}</div>
+                <p className="freelancing-plan-summary">{selectedPlan.summary}</p>
+                <div className="freelancing-plan-meta">
+                  <span>{selectedPlan.delivery}</span>
+                  <span>{selectedPlan.revisions}</span>
+                </div>
+                <div className="freelancing-plan-includes">
+                  <strong>What's Included</strong>
+                  <ul>
+                    {selectedPlan.included.map((item) => (
+                      <li key={item} className="is-included">{item}</li>
+                    ))}
+                    {selectedPlan.excluded.map((item) => (
+                      <li key={item} className="is-excluded">{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="auth-modal-actions freelancing-modal-actions">
+              <TransitionLink href="/contact" style={{ textDecoration: "none" }}>
+                <button type="button" className="freelancing-cta-button">Continue to contact</button>
+              </TransitionLink>
+              <a
+                href="https://www.fiverr.com/dexteritycoder_"
+                className="freelancing-cta-button freelancing-cta-button-secondary"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Hire me on Fiverr
+              </a>
+            </div>
+          </section>
+        </div>
+        {activeGalleryIndex >= 0 ? (
+          <div
+            className="gallery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gig image viewer"
+            onClick={() => setActiveGalleryIndex(-1)}
+          >
+            <div className="gallery-modal-inner" onClick={(event) => event.stopPropagation()}>
+              <button
+                type="button"
+                className="gallery-modal-close"
+                aria-label="Close image viewer"
+                onClick={() => setActiveGalleryIndex(-1)}
+              >
+                x
+              </button>
+              <button
+                type="button"
+                className="gallery-modal-nav left"
+                aria-label="Previous image"
+                onClick={showPreviousGalleryImage}
+              >
+                ‹
+              </button>
+              <figure className="gallery-modal-figure">
+                <img
+                  src={FREELANCING_GIG.images[activeGalleryIndex]}
+                  alt={`${FREELANCING_GIG.title} gallery image ${activeGalleryIndex + 1}`}
+                />
+                <figcaption>{`Reference ${activeGalleryIndex + 1} of ${FREELANCING_GIG.images.length}`}</figcaption>
+              </figure>
+              <button
+                type="button"
+                className="gallery-modal-nav right"
+                aria-label="Next image"
+                onClick={showNextGalleryImage}
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
-      <div className="blog-card freelancing-cta-card">
-        <div className="blog-content">
-          <span className="blog-category">Hire Me</span>
-          <h3>Choose the way you want to start</h3>
-          <p>Use the direct site contact option now, and we can swap in your Fiverr profile link as soon as you share it.</p>
-          <div className="freelancing-cta-buttons">
-            <TransitionLink href="/contact" style={{ textDecoration: "none" }}>
-              <button className="freelancing-cta-button">hire me here</button>
-            </TransitionLink>
-            <TransitionLink href="#" style={{ textDecoration: "none" }}>
-              <button className="freelancing-cta-button freelancing-cta-button-secondary">hire me on fiverr</button>
-            </TransitionLink>
+    </div>
+  );
+}
+
+function FreelancingActionGrid() {
+  const [modalOpen, setModalOpen] = useState(false);
+
+  return (
+    <>
+      <section className="freelancing-grid" aria-label="Freelancing actions">
+        <div className="blog-card freelancing-content-card">
+          <div className="blog-content">
+            <span className="blog-category">Freelancing</span>
+            <h3>Choose a service before you message me</h3>
+            <p>
+              Open the full gig to review the business website offer, browse the reference visuals, and compare the Basic, Standard, and Premium plans before reaching out.
+            </p>
+            <div className="freelancing-content-actions">
+              <button type="button" className="freelancing-cta-button freelancing-view-gigs-button" onClick={() => setModalOpen(true)}>
+                view gigs
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+        <div className="blog-card freelancing-cta-card">
+          <div className="blog-content">
+            <span className="blog-category">Hire Me</span>
+            <h3>Choose the way you want to start</h3>
+            <p>Use the direct site option to open the full gig, inspect the plans, and continue only when the package matches what your business needs.</p>
+            <div className="freelancing-cta-buttons">
+              <button type="button" className="freelancing-cta-button" onClick={() => setModalOpen(true)}>
+                hire me here
+              </button>
+              <a
+                href="https://www.fiverr.com/dexteritycoder_"
+                className="freelancing-cta-button freelancing-cta-button-secondary"
+                target="_blank"
+                rel="noreferrer"
+              >
+                hire me on fiverr
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+      <FreelancingGigModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </>
   );
 }
 
@@ -2960,8 +3321,100 @@ function AboutPage({ siteData, engagement, auth, content }) {
 }
 
 function ContactPage({ siteData, engagement, auth }) {
-  usePageSetup(siteData.contact.documentTitle);
+  const [form, setForm] = useState({
+    name: auth.profile?.displayName || "",
+    email: auth.user?.email || "",
+    contactMode: "normal",
+    contactNumber: "",
+    inquiryType: "gig",
+    selectedGig: "",
+    lookingFor: "",
+    paymentTiming: "pay-later",
+    message: "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [gigPickerOpen, setGigPickerOpen] = useState(false);
+
+  const pageTitle =
+    form.contactMode === "enquiry"
+      ? "Project Enquiry | Dexteritycoder"
+      : siteData.contact.documentTitle;
+  usePageSetup(pageTitle);
   useSitePageTracker(engagement, "contact");
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      name: auth.profile?.displayName || current.name,
+      email: auth.user?.email || current.email,
+    }));
+  }, [auth.profile?.displayName, auth.user?.email]);
+
+  function updateField(name, value) {
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === "contactMode" && value === "normal"
+        ? {
+            contactNumber: "",
+            inquiryType: "gig",
+            selectedGig: "",
+            lookingFor: "",
+            paymentTiming: "pay-later",
+          }
+        : {}),
+      ...(name === "inquiryType" && value !== "gig" ? { selectedGig: "" } : {}),
+    }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await submitContactRequest({
+        name: form.name,
+        email: form.email,
+        contactMode: form.contactMode,
+        contactNumber: form.contactNumber,
+        inquiryType: form.contactMode === "enquiry" ? form.inquiryType : "",
+        selectedGig:
+          form.contactMode === "enquiry" && form.inquiryType === "gig"
+            ? form.selectedGig
+            : "",
+        lookingFor: form.contactMode === "enquiry" ? form.lookingFor : "",
+        paymentTiming: form.contactMode === "enquiry" ? form.paymentTiming : "",
+        message: form.message,
+      });
+
+      setNotice(response?.message || "Your message has been sent.");
+      setForm({
+        name: auth.profile?.displayName || "",
+        email: auth.user?.email || "",
+        contactMode: "normal",
+        contactNumber: "",
+        inquiryType: "gig",
+        selectedGig: "",
+        lookingFor: "",
+        paymentTiming: "pay-later",
+        message: "",
+      });
+      setGigPickerOpen(false);
+    } catch (submitError) {
+      setError(submitError.message || "Could not send your message right now.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const sectionTitle =
+    form.contactMode === "enquiry" ? "Project enquiry" : "Contact";
+  const sectionEyebrow =
+    form.contactMode === "enquiry" ? "Enquiry" : "Contact";
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -2969,26 +3422,181 @@ function ContactPage({ siteData, engagement, auth }) {
         titleHtml={siteData.contact.heroTitleHtml}
         titleStyle={{ fontSize: "clamp(1.45rem, 1.3vw + 1.05rem, 2.2rem)" }}
       />
-      <div className="contact-form-container">
-        <form className="contact-form">
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="fullName">Full Name</label>
-              <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" required />
+      <section className="contact-page-shell">
+        <div className="contact-form-container contact-form-main-card">
+          <div className="contact-form-intro">
+            <span className="blog-category">{sectionEyebrow}</span>
+            <h2>{sectionTitle}</h2>
+          </div>
+          <form className="contact-form-dense" onSubmit={handleSubmit}>
+            <div className="contact-mode-toggle" role="tablist" aria-label="Contact form mode">
+              <button
+                type="button"
+                className={`contact-mode-button${form.contactMode === "normal" ? " is-active" : ""}`}
+                onClick={() => updateField("contactMode", "normal")}
+                aria-pressed={form.contactMode === "normal"}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                className={`contact-mode-button${form.contactMode === "enquiry" ? " is-active" : ""}`}
+                onClick={() => updateField("contactMode", "enquiry")}
+                aria-pressed={form.contactMode === "enquiry"}
+              >
+                Enquiry
+              </button>
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="contact-name">Name</label>
+                <input
+                  type="text"
+                  id="contact-name"
+                  value={form.name}
+                  onChange={(event) => updateField("name", event.target.value)}
+                  placeholder="Your full name"
+                  maxLength={120}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="contact-email">Email</label>
+                <input
+                  type="email"
+                  id="contact-email"
+                  value={form.email}
+                  onChange={(event) => updateField("email", event.target.value)}
+                  placeholder="you@example.com"
+                  maxLength={160}
+                  required
+                />
+              </div>
+            </div>
+            {form.contactMode === "enquiry" ? (
+              <>
+                <div className="form-group">
+                  <label htmlFor="contact-number">Contact (optional)</label>
+                  <input
+                    type="text"
+                    id="contact-number"
+                    value={form.contactNumber}
+                    onChange={(event) => updateField("contactNumber", event.target.value)}
+                    placeholder="Phone / WhatsApp / Telegram"
+                    maxLength={60}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Gig or order type</label>
+                  <div className="contact-gig-picker-row">
+                    <button
+                      type="button"
+                      className="contact-gig-picker-button"
+                      onClick={() => setGigPickerOpen(true)}
+                    >
+                      {form.inquiryType === "gig" ? form.selectedGig || "Select service" : "Customized order selected"}
+                    </button>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="contact-looking-for">What are you looking for?</label>
+                  <input
+                    type="text"
+                    id="contact-looking-for"
+                    value={form.lookingFor}
+                    onChange={(event) => updateField("lookingFor", event.target.value)}
+                    placeholder="Landing page, business site, e-commerce, redesign, etc."
+                    maxLength={500}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Payment timing</label>
+                  <div className="contact-payment-toggle">
+                    <button
+                      type="button"
+                      className={`contact-payment-button${form.paymentTiming === "pay-now" ? " is-active" : ""}`}
+                      onClick={() => updateField("paymentTiming", "pay-now")}
+                    >
+                      Pay now
+                    </button>
+                    <button
+                      type="button"
+                      className={`contact-payment-button${form.paymentTiming === "pay-later" ? " is-active" : ""}`}
+                      onClick={() => updateField("paymentTiming", "pay-later")}
+                    >
+                      Pay later
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : null}
             <div className="form-group">
-              <label htmlFor="email">Email Address</label>
-              <input type="email" id="email" name="email" placeholder="Enter your email address" required />
+              <label htmlFor="contact-message">{form.contactMode === "enquiry" ? "Brief description about the order" : "Message"}</label>
+              <textarea
+                id="contact-message"
+                value={form.message}
+                onChange={(event) => updateField("message", event.target.value)}
+                rows="6"
+                placeholder={form.contactMode === "enquiry"
+                  ? "Share the business type, features, pages, design direction, and delivery expectations."
+                  : "Write your message here."}
+                maxLength={5000}
+                required
+              ></textarea>
+            </div>
+            {error ? <p className="engagement-error">{error}</p> : null}
+            {notice ? <p className="auth-success">{notice}</p> : null}
+            <button type="submit" className="submit-btn" disabled={busy}>
+              {busy ? "Sending..." : form.contactMode === "enquiry" ? "Submit Enquiry" : "Send Message"}
+            </button>
+          </form>
+        </div>
+        {gigPickerOpen ? (
+          <div className="auth-modal-backdrop contact-gig-backdrop" role="dialog" aria-modal="true" aria-label="Select gig" onClick={() => setGigPickerOpen(false)}>
+            <div className="auth-modal-card contact-gig-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="freelancing-modal-header">
+                <div>
+                  <p className="freelancing-modal-eyebrow">Select Gig</p>
+                  <h2>Choose the enquiry path</h2>
+                  <p className="freelancing-modal-copy">Pick the available gig or switch the enquiry to a customized order.</p>
+                </div>
+                <button type="button" className="gallery-modal-close freelancing-modal-close" onClick={() => setGigPickerOpen(false)} aria-label="Close gig selector">
+                  {"\u00D7"}
+                </button>
+              </div>
+              <div className="contact-gig-modal-grid">
+                <button
+                  type="button"
+                  className={`contact-gig-option${form.inquiryType === "gig" ? " is-active" : ""}`}
+                  onClick={() => {
+                    updateField("inquiryType", "gig");
+                    updateField("selectedGig", FREELANCING_GIG.title);
+                    setGigPickerOpen(false);
+                  }}
+                >
+                  <span className="blog-category">Available Gig</span>
+                  <strong>{FREELANCING_GIG.title}</strong>
+                  <p>Use the polished website gig already configured on the freelancing page.</p>
+                </button>
+                <button
+                  type="button"
+                  className={`contact-gig-option${form.inquiryType === "customized" ? " is-active" : ""}`}
+                  onClick={() => {
+                    updateField("inquiryType", "customized");
+                    updateField("selectedGig", "");
+                    setGigPickerOpen(false);
+                  }}
+                >
+                  <span className="blog-category">Customized Order</span>
+                  <strong>Custom scope request</strong>
+                  <p>Skip the standard gig and describe a tailored order built around your exact business needs.</p>
+                </button>
+              </div>
             </div>
           </div>
-          <div className="form-group">
-            <label htmlFor="message">Message</label>
-            <textarea id="message" name="message" rows="5" placeholder="Write your message..." required></textarea>
-          </div>
-          <br />
-          <button type="submit" className="submit-btn">Send Message</button>
-        </form>
-      </div>
+        ) : null}
+      </section>
     </Shell>
   );
 }

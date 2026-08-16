@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-12T01:48:02.691Z",
+  "updatedAt": "2026-08-16T06:11:59.381Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
       "count": 0
@@ -12,7 +12,7 @@
       "count": 0
     },
     "article:production-projects": {
-      "count": 1
+      "count": 0
     },
     "article:ai-machine-learning": {
       "count": 0
@@ -43,6 +43,12 @@
     },
     "blog:How to Make Header and Footer Appear on Every Page Without Copying Them Manually Using JS": {
       "count": 0
+    },
+    "page:home": {
+      "count": 0
+    },
+    "page:contact": {
+      "count": 1
     }
   }
 }
