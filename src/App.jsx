@@ -1521,7 +1521,7 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
           <div className="engagement-form-grid">
             <input
               type="text"
-              placeholder="Your name"
+              placeholder="Name"
               value={authorName}
               onChange={(event) => setAuthorName(event.target.value)}
               maxLength={80}
@@ -1529,7 +1529,7 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
             />
             <input
               type="email"
-              placeholder="Email (optional)"
+              placeholder="Email address (optional)"
               value={authorEmail}
               onChange={(event) => setAuthorEmail(event.target.value)}
               maxLength={160}
@@ -1537,7 +1537,7 @@ function EngagementPanel({ entityType, entityId, engagement, title = "Comments &
           </div>
         )}
         <textarea
-          placeholder={signedIn ? "Write your comment here..." : "Sign in to write a comment..."}
+          placeholder={signedIn ? "Share your thoughts" : "Sign in to join the conversation"}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           rows="5"
@@ -1744,7 +1744,7 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
             {!signedIn ? (
               <input
                 type="text"
-                placeholder="Your name"
+                placeholder="Name"
                 value={authorName}
                 onChange={(event) => setAuthorName(event.target.value)}
                 maxLength={80}
@@ -1758,7 +1758,7 @@ function CommentsPanel({ entityType, entityId, engagement, title = "Comments" })
             </button>
           </div>
           <textarea
-            placeholder={signedIn ? "Write a comment..." : "Sign in to write a comment..."}
+            placeholder={signedIn ? "Share a comment" : "Sign in to join the conversation"}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             rows="3"
@@ -3455,7 +3455,6 @@ function ContactPage({ siteData, engagement, auth }) {
                   id="contact-name"
                   value={form.name}
                   onChange={(event) => updateField("name", event.target.value)}
-                  placeholder="Your full name"
                   maxLength={120}
                   required
                 />
@@ -3467,7 +3466,6 @@ function ContactPage({ siteData, engagement, auth }) {
                   id="contact-email"
                   value={form.email}
                   onChange={(event) => updateField("email", event.target.value)}
-                  placeholder="you@example.com"
                   maxLength={160}
                   required
                 />
@@ -3482,7 +3480,6 @@ function ContactPage({ siteData, engagement, auth }) {
                     id="contact-number"
                     value={form.contactNumber}
                     onChange={(event) => updateField("contactNumber", event.target.value)}
-                    placeholder="Phone / WhatsApp / Telegram"
                     maxLength={60}
                   />
                 </div>
@@ -3494,7 +3491,7 @@ function ContactPage({ siteData, engagement, auth }) {
                       className="contact-gig-picker-button"
                       onClick={() => setGigPickerOpen(true)}
                     >
-                      {form.inquiryType === "gig" ? form.selectedGig || "Select service" : "Customized order selected"}
+                      {form.inquiryType === "gig" ? form.selectedGig || "Business website service" : "Customized order"}
                     </button>
                   </div>
                 </div>
@@ -3505,7 +3502,6 @@ function ContactPage({ siteData, engagement, auth }) {
                     id="contact-looking-for"
                     value={form.lookingFor}
                     onChange={(event) => updateField("lookingFor", event.target.value)}
-                    placeholder="Landing page, business site, e-commerce, redesign, etc."
                     maxLength={500}
                     required
                   />
@@ -3532,15 +3528,12 @@ function ContactPage({ siteData, engagement, auth }) {
               </>
             ) : null}
             <div className="form-group">
-              <label htmlFor="contact-message">{form.contactMode === "enquiry" ? "Brief description about the order" : "Message"}</label>
+              <label htmlFor="contact-message">{form.contactMode === "enquiry" ? "Project details" : "Message"}</label>
               <textarea
                 id="contact-message"
                 value={form.message}
                 onChange={(event) => updateField("message", event.target.value)}
                 rows="6"
-                placeholder={form.contactMode === "enquiry"
-                  ? "Share the business type, features, pages, design direction, and delivery expectations."
-                  : "Write your message here."}
                 maxLength={5000}
                 required
               ></textarea>
@@ -3558,8 +3551,8 @@ function ContactPage({ siteData, engagement, auth }) {
               <div className="freelancing-modal-header">
                 <div>
                   <p className="freelancing-modal-eyebrow">Select Gig</p>
-                  <h2>Choose the enquiry path</h2>
-                  <p className="freelancing-modal-copy">Pick the available gig or switch the enquiry to a customized order.</p>
+                  <h2>Project enquiry type</h2>
+                  <p className="freelancing-modal-copy">Choose the standard website service or continue with a custom scoped request.</p>
                 </div>
                 <button type="button" className="gallery-modal-close freelancing-modal-close" onClick={() => setGigPickerOpen(false)} aria-label="Close gig selector">
                   {"\u00D7"}
@@ -3577,7 +3570,7 @@ function ContactPage({ siteData, engagement, auth }) {
                 >
                   <span className="blog-category">Available Gig</span>
                   <strong>{FREELANCING_GIG.title}</strong>
-                  <p>Use the polished website gig already configured on the freelancing page.</p>
+                  <p>Proceed with the website service currently listed on the freelancing page.</p>
                 </button>
                 <button
                   type="button"
@@ -3590,7 +3583,7 @@ function ContactPage({ siteData, engagement, auth }) {
                 >
                   <span className="blog-category">Customized Order</span>
                   <strong>Custom scope request</strong>
-                  <p>Skip the standard gig and describe a tailored order built around your exact business needs.</p>
+                  <p>Share a tailored brief for work that falls outside the standard website service package.</p>
                 </button>
               </div>
             </div>
@@ -4637,9 +4630,8 @@ function AuthPage({ siteData, engagement, auth }) {
 
           <div className="auth-help-text auth-help-text-guide">
             <p className={!guideExpanded ? "is-collapsed" : ""}>
-              Use Google, GitHub, or email to create your account and continue where you left off. Your likes, comments,
-              and profile activity stay connected to your signed-in account. Need admin access? Request it during sign up
-              and approved emails will be elevated automatically.
+              Sign in with Google, GitHub, or email to keep your likes, comments, and profile activity connected to one
+              account. Admin access is limited to approved email addresses.
             </p>
             <button
               type="button"

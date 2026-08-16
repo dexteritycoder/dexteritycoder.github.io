@@ -10,8 +10,8 @@
   "footer": {
     "brand": "DEXTERITYCODER",
     "copyright": "© 2026 Dexteritycoder",
-    "newsletterPrompt": "Enter your email here *",
-    "newsletterCheckbox": "Yes, subscribe me to your newsletter.",
+    "newsletterPrompt": "Get new essays, projects, and releases by email.",
+    "newsletterCheckbox": "Send me occasional updates from Dexteritycoder.",
     "newsletterButton": "Subscribe",
     "socials": [
       { "label": "Instagram", "href": "https://instagram.com/dexteritycoder", "icon": "/images/instagram.avif" },
@@ -27,7 +27,7 @@
         "image": "/featuredimages/1.jpg",
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Production Projects",
-        "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
+        "description": "A public archive of finished builds, shipped systems, and practical engineering work with real code and documentation.",
         "views": "870 views",
         "comments": "0 comments",
         "likes": "❤ 36"
@@ -37,7 +37,7 @@
         "image": "/featuredimages/2.jpg",
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Artificial Intelligence & Machine Learning",
-        "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
+        "description": "Applied notes, experiments, and working ideas across AI, machine learning, and intelligent product building.",
         "views": "730 views",
         "comments": "0 comments",
         "likes": "❤ 27"
@@ -47,7 +47,7 @@
         "image": "/featuredimages/3.jpg",
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Train to Thoughts",
-        "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
+        "description": "Essays on technology, craft, philosophy, and the quieter thoughts that appear when the pace slows down.",
         "views": "960 views",
         "comments": "0 comments",
         "likes": "❤ 44"
@@ -57,7 +57,7 @@
         "image": "/featuredimages/4.jpg",
         "meta": "Admin · Mar 21, 2023 · 1 min read",
         "title": "Available for Freelancing",
-        "description": "Create a blog post subtitle that summarizes your post in a few short, punchy sentences and entices your audience to continue reading....",
+        "description": "A direct overview of current freelance services, technical offers, and the best way to start a project.",
         "views": "540 views",
         "comments": "0 comments",
         "likes": "❤ 20"
@@ -147,6 +147,6 @@
   "blogs": {
     "documentTitle": "Writings | Dexteritycoder",
     "heroTitleHtml": "TIME OUTSIDE SCREENS",
-    "searchPlaceholder": "Search writings by title, description, or author..."
+    "searchPlaceholder": "Search the writing archive"
   }
 }
