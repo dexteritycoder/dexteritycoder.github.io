@@ -2703,7 +2703,7 @@ function FreelancingGigModal({ open, onClose }) {
   }
 
   return (
-    <div className="auth-modal-backdrop" role="dialog" aria-modal="true" aria-label="Freelancing gig" onClick={onClose}>
+    <div className="auth-modal-backdrop freelancing-modal-backdrop" role="dialog" aria-modal="true" aria-label="Freelancing gig" onClick={onClose}>
       <div className="auth-modal-card freelancing-modal-card" onClick={(event) => event.stopPropagation()}>
         <div className="freelancing-modal-header">
           <div>

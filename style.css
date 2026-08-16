@@ -2857,13 +2857,22 @@ form p {
 }
 
 @media (max-width: 900px) {
-    .form-row {
-        grid-template-columns: 1fr;
-        gap: 24px;
+    .contact-page-shell {
+        display: grid;
+        justify-items: center;
+        padding: 0;
     }
 
     .contact-form-main-card {
+        width: 95%;
+        margin-left: auto;
+        margin-right: auto;
         padding: 24px 18px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 24px;
     }
 
     .contact-gig-modal-grid {
@@ -4032,6 +4041,12 @@ form p {
 
     .freelancing-grid {
         grid-template-columns: 1fr;
+        justify-items: center;
+    }
+
+    .freelancing-grid .blog-card {
+        width: min(100%, 560px);
+        transform: translateX(-3px);
     }
 
     .freelancing-cta-buttons {
@@ -4087,9 +4102,35 @@ form p {
         line-height: 1.65;
     }
 
-    .freelancing-gig-thumbs,
-    .freelancing-plan-tabs {
+    .freelancing-gig-thumbs {
         grid-template-columns: 1fr;
+    }
+
+    .freelancing-plan-tabs {
+        display: inline-grid;
+        grid-template-columns: repeat(3, auto);
+        justify-content: start;
+        gap: 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 4px;
+        overflow-x: auto;
+    }
+
+    .freelancing-plan-tab {
+        padding: 8px 10px;
+        font-size: 0.76rem;
+        line-height: 1.1;
+        white-space: nowrap;
+        border-radius: 999px;
+    }
+
+    .freelancing-plan-tab + .freelancing-plan-tab {
+        border-left: 0;
+    }
+
+    .freelancing-plan-tab.is-active {
+        box-shadow: none;
     }
 
     .freelancing-gig-topline {
@@ -4098,6 +4139,131 @@ form p {
     }
 
     .freelancing-plan-card {
+        width: 108%;
+        max-width: 108%;
         padding: 20px;
+        margin: 12px 0 0;
+        position: relative;
+        left: 50%;
+        transform: translateX(-50%);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 22px;
+    }
+
+    .auth-modal-backdrop.freelancing-modal-backdrop,
+    .auth-modal-backdrop.contact-gig-backdrop {
+        padding: 0;
+        align-items: stretch;
+        justify-items: stretch;
+        overflow: hidden;
+        background: rgba(8, 8, 8, 0.96);
+        backdrop-filter: none;
+    }
+
+    .freelancing-modal-card,
+    .contact-gig-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100dvh;
+        min-height: 100dvh;
+        margin: 0;
+        padding: calc(var(--nav-height) + 18px) 18px 24px;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .freelancing-modal-header,
+    .freelancing-modal-layout,
+    .contact-gig-modal-grid {
+        width: 95%;
+        max-width: 95%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .freelancing-gig-media {
+        width: 100%;
+    }
+
+    .freelancing-gig-detail {
+        width: 110%;
+        max-width: 110%;
+        justify-self: center;
+        margin-left: -14px;
+        margin-right: auto;
+    }
+
+    .freelancing-gig-thumbs {
+        display: flex;
+        grid-template-columns: none;
+        gap: 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 6px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .freelancing-gig-thumb {
+        flex: 0 0 92px;
+        min-width: 92px;
+        scroll-snap-align: start;
+    }
+
+    .gallery-modal {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        background: rgba(8, 8, 8, 0.98);
+        backdrop-filter: none;
+    }
+
+    .gallery-modal-inner {
+        width: 95vw;
+        max-width: 95vw;
+        min-height: 100dvh;
+        padding: calc(var(--nav-height) + 18px) 0 24px;
+        margin: 0 auto;
+        box-sizing: border-box;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 14px;
+    }
+
+    .gallery-modal-figure {
+        align-self: stretch;
+        min-height: 0;
+    }
+
+    .gallery-modal-figure img {
+        max-height: calc(100dvh - var(--nav-height) - 170px);
+        border-radius: 16px;
+    }
+
+    .gallery-modal-close {
+        position: sticky;
+        top: 0;
+        right: auto;
+        justify-self: end;
+    }
+
+    .gallery-modal-nav {
+        position: static;
+        transform: none;
+        width: 100%;
+        max-width: 220px;
+        height: 48px;
+        font-size: 1.5rem;
+    }
+
+    .gallery-modal-nav.left,
+    .gallery-modal-nav.right {
+        left: auto;
+        right: auto;
     }
 }

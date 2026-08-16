@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-16T06:11:59.381Z",
+  "updatedAt": "2026-08-16T11:02:07.183Z",
   "entities": {
     "blog:How to Make our own Jarvis with the help of python": {
       "count": 0
@@ -21,7 +21,7 @@
       "count": 0
     },
     "article:available-for-freelancing": {
-      "count": 0
+      "count": 1
     },
     "project:Offline Music Library System": {
       "count": 0
@@ -48,7 +48,10 @@
       "count": 0
     },
     "page:contact": {
-      "count": 1
+      "count": 0
+    },
+    "page:works": {
+      "count": 0
     }
   }
 }
