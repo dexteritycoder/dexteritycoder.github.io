@@ -164,18 +164,23 @@ function usePageSetup(title, bodyClassName = "") {
   useEffect(() => {
     const pagePath = `${location.pathname}${location.search}${location.hash}`;
     const canonicalLink = document.getElementById("canonical-url");
+    const measurementId = window.DEXTERITYCODER_GA_MEASUREMENT_ID;
 
     if (canonicalLink) {
       canonicalLink.href = `${window.location.origin}${pagePath}`;
     }
 
-    if (typeof window.gtag === "function") {
+    if (typeof window.gtag === "function" && measurementId) {
       window.gtag("event", "page_view", {
+        send_to: measurementId,
         page_title: title,
         page_path: pagePath,
         page_location: window.location.href,
       });
+      return;
     }
+
+    console.warn("[analytics] Google Analytics page view skipped because gtag is unavailable.");
   }, [location.hash, location.pathname, location.search, title]);
 }
 

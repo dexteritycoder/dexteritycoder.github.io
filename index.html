@@ -4,13 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- Google tag (gtag.js) -->
+<script>
+  window.DEXTERITYCODER_GA_MEASUREMENT_ID = "G-KGJPGWG4F7";
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function gtag() {
+    window.dataLayer.push(arguments);
+  };
+</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-KGJPGWG4F7"></script>
 <script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-KGJPGWG4F7', { send_page_view: false });
+  window.gtag("js", new Date());
+  window.gtag("config", window.DEXTERITYCODER_GA_MEASUREMENT_ID, {
+    send_page_view: false,
+  });
 </script>
     <meta
       name="description"
@@ -73,7 +79,7 @@
         window.dexteritycoderAdConfig = window.dexteritycoderAdConfig || {
           consentMode: {
             ad_storage: "denied",
-            analytics_storage: "denied",
+            analytics_storage: "granted",
             ad_user_data: "denied",
             ad_personalization: "denied",
           },
@@ -81,6 +87,12 @@
         };
 
         window.gtag("consent", "default", window.dexteritycoderAdConfig.consentMode);
+        window.dexteritycoderGrantAnalyticsConsent = function dexteritycoderGrantAnalyticsConsent() {
+          window.dexteritycoderAdConfig.consentMode.analytics_storage = "granted";
+          window.gtag("consent", "update", {
+            analytics_storage: "granted",
+          });
+        };
         window.fbq("consent", "revoke");
 
         document.documentElement.dataset.adServicesReady = "true";
