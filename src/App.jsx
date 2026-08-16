@@ -2488,6 +2488,10 @@ function useViewTracker(engagement, entityType, entityId) {
   }, [engagement, entityId, entityType]);
 }
 
+function useSitePageTracker(engagement, pageId) {
+  useViewTracker(engagement, "page", pageId);
+}
+
 function WorkCard({ card, stats, engagement, entityType = "article", entityId = card.slug }) {
   const navigateWithTransition = useTransitionNavigate();
   const fallbackViewCount = parseLooseCount(card.views);
@@ -2574,6 +2578,7 @@ function Shell({ siteData, auth, children }) {
 
 function HomePage({ siteData, engagement, auth }) {
   usePageSetup("Dexteritycoder", "home-page");
+  useSitePageTracker(engagement, "home");
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -2601,7 +2606,8 @@ function HomePage({ siteData, engagement, auth }) {
 }
 
 function WorksPage({ siteData, engagement, auth }) {
-  usePageSetup("Writings | Dexteritycoder", "home-page");
+  usePageSetup("Works | Dexteritycoder", "home-page");
+  useSitePageTracker(engagement, "works");
 
   const cards = siteData.home.works.map((card) => ({
     ...card,
@@ -2868,7 +2874,7 @@ function WorkMarkdownPage({ siteData, slug, production = false, engagement, auth
   );
 }
 
-function AboutPage({ siteData, auth, content }) {
+function AboutPage({ siteData, engagement, auth, content }) {
   const managedPage = resolvePageManagedEntry("about", "about", content);
   const { data, error, loading } = useText(siteData.about.markdownPath);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -2880,6 +2886,7 @@ function AboutPage({ siteData, auth, content }) {
     ctaHref: managedPage?.ctaHref || siteData.about.ctaHref,
   };
   usePageSetup(aboutData.documentTitle);
+  useSitePageTracker(engagement, "about");
 
   async function handleAboutEdit(form) {
     setEditorBusy(true);
@@ -2952,8 +2959,9 @@ function AboutPage({ siteData, auth, content }) {
   );
 }
 
-function ContactPage({ siteData, auth }) {
+function ContactPage({ siteData, engagement, auth }) {
   usePageSetup(siteData.contact.documentTitle);
+  useSitePageTracker(engagement, "contact");
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -2985,8 +2993,9 @@ function ContactPage({ siteData, auth }) {
   );
 }
 
-function DonatePage({ siteData, auth }) {
+function DonatePage({ siteData, engagement, auth }) {
   usePageSetup(siteData.donate.documentTitle);
+  useSitePageTracker(engagement, "donate");
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -3015,6 +3024,7 @@ function BlogListPage({ siteData, engagement, auth, content }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const navigateWithTransition = useTransitionNavigate();
   usePageSetup(siteData.blogs.documentTitle, "home-page");
+  useSitePageTracker(engagement, "writings");
 
   const posts = mergeBlogPosts(
     Array.isArray(data)
@@ -3863,7 +3873,7 @@ function AuthRoleDropdown({ role, onChange }) {
   );
 }
 
-function AuthPage({ siteData, auth }) {
+function AuthPage({ siteData, engagement, auth }) {
   const [mode, setMode] = useState("signup");
   const [role, setRole] = useState("visitor");
   const [displayName, setDisplayName] = useState("");
@@ -3871,8 +3881,10 @@ function AuthPage({ siteData, auth }) {
   const [password, setPassword] = useState("");
   const [guideExpanded, setGuideExpanded] = useState(false);
   const navigateWithTransition = useTransitionNavigate();
+  const authPageTitle = mode === "signup" ? "Sign Up | Dexteritycoder" : "Log In | Dexteritycoder";
 
-  usePageSetup("Sign Up | Dexteritycoder", "post-page");
+  usePageSetup(authPageTitle, "post-page");
+  useSitePageTracker(engagement, mode === "signup" ? "auth-signup" : "auth-login");
 
   useEffect(() => {
     if (auth.user) {
@@ -4036,9 +4048,10 @@ function AuthPage({ siteData, auth }) {
   );
 }
 
-function AuthCallbackPage({ siteData, auth }) {
+function AuthCallbackPage({ siteData, engagement, auth }) {
   const navigate = useNavigate();
   usePageSetup("Signing In | Dexteritycoder", "post-page");
+  useSitePageTracker(engagement, "auth-callback");
 
   useEffect(() => {
     if (!auth.loading && auth.callbackReady && auth.user) {
@@ -4241,8 +4254,9 @@ function AdminDashboardPanel({ dashboard, loading, error, onReviewComment, onRev
   );
 }
 
-function AccountPage({ siteData, auth, content }) {
+function AccountPage({ siteData, engagement, auth, content }) {
   usePageSetup("Account | Dexteritycoder", "post-page");
+  useSitePageTracker(engagement, "account");
 
   const profile = auth.profile || {
     displayName: auth.user?.email || "Member",
@@ -4454,8 +4468,9 @@ function LegacyWritingRedirect() {
   return <Navigate to={`/writings/${encodeURIComponent(blogId || "")}`} replace />;
 }
 
-function LegalPage({ siteData, auth, title, heroTitleHtml, children }) {
+function LegalPage({ siteData, engagement, auth, title, heroTitleHtml, pageId, children }) {
   usePageSetup(title, "post-page legal-page");
+  useSitePageTracker(engagement, pageId);
 
   return (
     <Shell siteData={siteData} auth={auth}>
@@ -4479,13 +4494,13 @@ function AppRoutes({ siteData, engagement, auth, content }) {
       <Route path="/ai-machine-learning" element={<WorkMarkdownPage siteData={siteData} slug="ai-machine-learning" engagement={engagement} auth={auth} content={content} />} />
       <Route path="/train-to-thoughts" element={<WorkMarkdownPage siteData={siteData} slug="train-to-thoughts" engagement={engagement} auth={auth} content={content} />} />
       <Route path="/available-for-freelancing" element={<WorkMarkdownPage siteData={siteData} slug="available-for-freelancing" engagement={engagement} auth={auth} content={content} />} />
-      <Route path="/about" element={<AboutPage siteData={siteData} auth={auth} content={content} />} />
-      <Route path="/contact" element={<ContactPage siteData={siteData} auth={auth} />} />
-      <Route path="/donate" element={<DonatePage siteData={siteData} auth={auth} />} />
+      <Route path="/about" element={<AboutPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
+      <Route path="/contact" element={<ContactPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/donate" element={<DonatePage siteData={siteData} engagement={engagement} auth={auth} />} />
       <Route
         path="/privacy-policy"
         element={(
-          <LegalPage siteData={siteData} auth={auth} title="Privacy Policy | Dexteritycoder" heroTitleHtml="<b>PRIVACY</b> POLICY">
+          <LegalPage siteData={siteData} engagement={engagement} auth={auth} title="Privacy Policy | Dexteritycoder" heroTitleHtml="<b>PRIVACY</b> POLICY" pageId="privacy-policy">
             <h1>Privacy Policy</h1>
             <p>Last updated: August 9, 2026</p>
             <p>
@@ -4531,7 +4546,7 @@ function AppRoutes({ siteData, engagement, auth, content }) {
       <Route
         path="/cookie-policy"
         element={(
-          <LegalPage siteData={siteData} auth={auth} title="Cookie Policy | Dexteritycoder" heroTitleHtml="<b>COOKIE</b> POLICY">
+          <LegalPage siteData={siteData} engagement={engagement} auth={auth} title="Cookie Policy | Dexteritycoder" heroTitleHtml="<b>COOKIE</b> POLICY" pageId="cookie-policy">
             <h1>Cookie Policy</h1>
             <p>Last updated: August 9, 2026</p>
             <p>
@@ -4557,7 +4572,7 @@ function AppRoutes({ siteData, engagement, auth, content }) {
       <Route
         path="/advertising-disclosure"
         element={(
-          <LegalPage siteData={siteData} auth={auth} title="Advertising Disclosure | Dexteritycoder" heroTitleHtml="<b>ADVERTISING</b> DISCLOSURE">
+          <LegalPage siteData={siteData} engagement={engagement} auth={auth} title="Advertising Disclosure | Dexteritycoder" heroTitleHtml="<b>ADVERTISING</b> DISCLOSURE" pageId="advertising-disclosure">
             <h1>Advertising Disclosure</h1>
             <p>Last updated: August 9, 2026</p>
             <p>
@@ -4578,9 +4593,9 @@ function AppRoutes({ siteData, engagement, auth, content }) {
       />
       <Route path="/writings" element={<BlogListPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/writings/:blogId" element={<BlogDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
-      <Route path="/auth" element={<AuthPage siteData={siteData} auth={auth} />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage siteData={siteData} auth={auth} />} />
-      <Route path="/account" element={<AccountPage siteData={siteData} auth={auth} content={content} />} />
+      <Route path="/auth" element={<AuthPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage siteData={siteData} engagement={engagement} auth={auth} />} />
+      <Route path="/account" element={<AccountPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
       <Route path="/blog" element={<Navigate to="/writings" replace />} />
       <Route path="/blog/:blogId" element={<LegacyWritingRedirect />} />
       <Route path="/project/:owner/:repo" element={<ProjectDetailPage siteData={siteData} engagement={engagement} auth={auth} content={content} />} />
