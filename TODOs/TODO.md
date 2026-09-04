@@ -7,14 +7,6 @@
 5. Add Latest AI & Machine Learning Fields and software tutorials & Guides in AI & ML work card
 6. Documentation Loading Fix (28-06-2026)
 
-22-07-2026
-- Failed to save engagement data.
-- likes counting now synching between devices
-- Add MongoDB as database or try neon or supabase
-
-- All Done
-
-
 # Sign up and Log in
 
 ## For Admin
@@ -45,3 +37,10 @@ where:
 
 - Keep saving the text written in the modal (currently it automatically flushes after few seconds)
 
+
+
+# Regulation Stage
+
+1. write more blogs about 100+
+2. same write on reddit and medium half and link to the main blog on the site
+3. utility tool - (On same page, 3 cards flex, one search bar on the top, search query will be searched on chosen AI, reddit & stackoverflow) and then user can choose which one to follow. (Best for research and efficient problem solving)
